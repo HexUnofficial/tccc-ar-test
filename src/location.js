@@ -7,10 +7,11 @@
  * more precision than GPS can resolve, so don't agonise over it.
  */
 export const INSTALLATION = {
-  // 174 St John St, London EC1V 4DE — 51°31'27.6"N 0°06'09.8"W
+  // 174 St John St, London EC1V 4DE — 51°31'27.5"N 0°06'06.9"W
+  // DMS -> decimal is degrees + minutes/60 + seconds/3600, negated for W or S.
   label: '174 St John Street, London',
-  lat: 51.524333,
-  lon: -0.102722,
+  lat: 51.524306,
+  lon: -0.101917,
   /**
    * Metres above the viewer's feet. Leave at 0 for something standing on the
    * ground with you; raise it to put the model on a roof or a plinth.
