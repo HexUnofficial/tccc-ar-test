@@ -1,0 +1,63 @@
+/**
+ * Builds the site, serves it, and runs the smoke test across a spread of
+ * placements. One command so there's no excuse not to run it before a deploy.
+ */
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+
+// The dev cert is self-signed; every request in this file targets our own server.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+const PORT = 4173;
+const BASE_URL = `https://localhost:${PORT}`;
+
+const SCENARIOS = [
+  { name: 'near, due north', env: { MODE: 'relative', DISTANCE: '6', BEARING: '0' } },
+  { name: 'mid range, east', env: { MODE: 'relative', DISTANCE: '20', BEARING: '90' } },
+  { name: 'far, south west', env: { MODE: 'relative', DISTANCE: '50', BEARING: '225' } },
+  { name: 'equator (no Mercator distortion)', env: { MODE: 'relative', DISTANCE: '20', LAT: '0' } },
+  { name: 'high latitude (worst distortion)', env: { MODE: 'relative', DISTANCE: '20', LAT: '68.5' } },
+  { name: 'fixed site coordinates', env: { MODE: 'fixed', LAT: '51.050161', LON: '3.725090' } },
+];
+
+const run = (cmd, args, options = {}) =>
+  spawn(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32', ...options });
+
+console.log('▸ building…');
+if ((await once(run('npx', ['vite', 'build', '--logLevel', 'warn']), 'exit'))[0] !== 0) {
+  process.exit(1);
+}
+
+console.log(`▸ serving on ${BASE_URL}`);
+const server = run('npx', ['vite', 'preview', '--port', String(PORT)], { stdio: 'ignore' });
+
+// Wait for the server to answer rather than guessing at a sleep duration.
+for (let attempt = 0; ; attempt += 1) {
+  try {
+    await fetch(BASE_URL);
+    break;
+  } catch {
+    if (attempt > 50) { server.kill(); throw new Error('preview server never came up'); }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+const failed = [];
+for (const scenario of SCENARIOS) {
+  console.log(`\n──── ${scenario.name} ────`);
+  const child = run('node', ['tools/smoke-test.mjs'], {
+    env: { ...process.env, ...scenario.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push(scenario.name);
+}
+
+server.kill();
+
+console.log(`\n${'═'.repeat(50)}`);
+if (failed.length) {
+  console.error(`✖ ${failed.length}/${SCENARIOS.length} scenarios failed:`);
+  for (const name of failed) console.error(`   - ${name}`);
+  process.exit(1);
+}
+console.log(`✔ all ${SCENARIOS.length} scenarios passed`);

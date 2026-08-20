@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>TCCC — GPS AR Test</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <!-- LocAR injects the camera feed <video> behind this canvas. -->
+  <canvas id="scene"></canvas>
+
+  <div id="hud">
+    <p id="status" data-tone="neutral" hidden></p>
+
+    <div id="arrow" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 20l8-5 8 5Z" fill="currentColor"/></svg>
+      <span id="arrow-label"></span>
+    </div>
+
+    <button id="panel-toggle" type="button" aria-label="Toggle telemetry">i</button>
+
+    <dl id="panel">
+      <dt>Your fix</dt><dd id="f-fix">—</dd>
+      <dt>Accuracy</dt><dd id="f-accuracy">—</dd>
+      <dt>Heading</dt><dd id="f-heading">—</dd>
+      <dt>Anchor</dt><dd id="f-anchor">—</dd>
+      <dt>Distance</dt><dd id="f-distance">—</dd>
+      <dt>Bearing</dt><dd id="f-bearing">—</dd>
+      <dt>FPS</dt><dd id="f-fps">—</dd>
+    </dl>
+  </div>
+
+  <div id="gate">
+    <div class="gate-card">
+      <h1>GPS AR test</h1>
+      <p>Point your phone at the world around you. We need your camera, location and motion sensors.</p>
+      <button id="gate-start" type="button" disabled>Start AR</button>
+      <p id="gate-message">Loading model…</p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
