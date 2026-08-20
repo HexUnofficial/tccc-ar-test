@@ -28,6 +28,22 @@ export const INSTALLATION = {
  */
 export const DEFAULT_MODE = 'fixed';
 
+/**
+ * Which way the aircraft beats back and forth.
+ *
+ *   'across'  perpendicular to your line of sight, so it sweeps left and right
+ *             in front of you wherever you stand. Best for testing.
+ *   'along'   straight towards you and away again.
+ *   a number  a true compass bearing, held regardless of where you stand.
+ *             This is the one to set on site: point it down the river.
+ *
+ * The Thames runs roughly WSW-ENE through central London, but its bearing
+ * changes sharply along its length, so measure it at the spot you're using:
+ * drop two Google Maps pins along the stretch you want and take the bearing
+ * between them.
+ */
+export const FLIGHT_HEADING = 'across';
+
 /** Relative-mode placement: how far away, and on what compass bearing. */
 export const RELATIVE_PLACEMENT = {
   distance: 20, // metres

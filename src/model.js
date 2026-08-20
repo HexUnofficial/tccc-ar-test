@@ -39,42 +39,56 @@ function createGroundShadow(radius) {
  * @returns {Promise<{root: THREE.Group, mixer: THREE.AnimationMixer|null, clipName: string|null}>}
  */
 export async function loadModel(onProgress) {
-  const gltf = await new GLTFLoader().loadAsync(config.model.url, (event) => {
+  const preset = config.model;
+
+  const gltf = await new GLTFLoader().loadAsync(preset.url, (event) => {
     if (event.lengthComputable) onProgress?.(event.loaded / event.total);
   });
 
   const model = gltf.scene;
 
-  // Scale to the configured real-world height, then sit it on the ground.
+  // Normalise to a real-world size. Aircraft are measured along their longest
+  // axis; anything standing on the ground is measured by height.
   const bounds = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3();
   bounds.getSize(size);
-  const scale = size.y > 0 ? config.model.heightMeters / size.y : 1;
-  model.scale.setScalar(scale);
+  const reference = preset.scaleBy === 'size' ? Math.max(size.x, size.y, size.z) : size.y;
+  model.scale.setScalar(reference > 0 ? preset.size / reference : 1);
 
   bounds.setFromObject(model);
   const centre = new THREE.Vector3();
   bounds.getCenter(centre);
   model.position.x -= centre.x;
   model.position.z -= centre.z;
-  model.position.y -= bounds.min.y;
+  // Ground models stand on the anchor; flying ones are centred on their path.
+  model.position.y -= preset.behaviour === 'flight' ? centre.y : bounds.min.y;
 
   model.traverse((child) => {
     if (child.isMesh) child.frustumCulled = false;
   });
 
-  // The yaw wrapper is what we spin to face the viewer; the anchor group is what
-  // LocAR positions, so the two concerns never fight each other.
+  /*
+   * Three nested groups, each owning exactly one concern:
+   *   root    positioned by LocAR at the GPS anchor, never touched by us
+   *   motion  flown along the circuit, or spun to face the viewer
+   *   yaw     fixed correction for a model that doesn't face -Z as authored
+   * Without the separation, the flight path and the nose correction fight.
+   */
   const yaw = new THREE.Group();
-  yaw.rotation.y = THREE.MathUtils.degToRad(config.model.yawOffset);
+  yaw.rotation.y = THREE.MathUtils.degToRad(preset.noseOffset + config.model.yawOffset);
   yaw.add(model);
 
-  const root = new THREE.Group();
-  root.add(yaw);
+  const motion = new THREE.Group();
+  motion.add(yaw);
 
-  bounds.setFromObject(model);
-  const footprint = Math.max(bounds.max.x - bounds.min.x, bounds.max.z - bounds.min.z);
-  root.add(createGroundShadow(footprint * 0.6));
+  const root = new THREE.Group();
+  root.add(motion);
+
+  if (preset.groundShadow) {
+    bounds.setFromObject(model);
+    const footprint = Math.max(bounds.max.x - bounds.min.x, bounds.max.z - bounds.min.z);
+    root.add(createGroundShadow(footprint * 0.6));
+  }
 
   let mixer = null;
   let clipName = null;
@@ -85,5 +99,5 @@ export async function loadModel(onProgress) {
     clipName = clip.name;
   }
 
-  return { root, yaw, mixer, clipName };
+  return { root, motion, yaw, mixer, clipName, preset };
 }

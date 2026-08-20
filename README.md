@@ -99,39 +99,109 @@ address bar instead of redeploying.
 | `distance` | `20` | Relative mode: metres away |
 | `bearing` | `0` | Relative mode: degrees from true north |
 | `elev` | `0` | Metres above your feet |
-| `height` | `2.4` | Real-world height of the model, in metres |
+| `model` | `airplane` | `airplane` or `witch` |
+| `size` | per model | Real-world size in metres (longest axis for the aircraft, height for the witch) |
+| `path` | `racetrack` | Flight circuit: `racetrack`, `circle`, `eight` |
+| `heading` | from `location.js` | `across`, `along`, or a compass bearing for the line |
+| `length` | `250` | Straight leg, in metres, or `fit` to size it to the frame |
+| `turn` | `40` | Turn radius at each end — also half the gap between legs |
+| `speed` | `20` | Airspeed in m/s (20 ≈ 72 km/h) |
+| `alt` | `50` | Flight altitude above the anchor, in metres |
+| `bank` | `45` | Maximum roll into a turn, in degrees |
+| `rolltime` | `0.8` | Seconds to roll into a bank. `0` snaps |
+| `radius`, `period` | `30`, `16` | Only used by `circle` and `eight` |
 | `yaw` | `0` | Degrees of extra rotation, if the model faces the wrong way |
 | `faceuser` | `1` | `0` to stop it turning to face you |
 | `minacc` | `100` | Ignore GPS fixes worse than this many metres |
-| `mindist` | `5` | Metres you must move before the scene re-projects |
+| `mindist` | `1` | Metres you must move before the scene re-projects |
+| `smooth` | `1.2` | GPS intervals spent catching up to each fix. `0` snaps instantly |
+| `farwarn` | `200` | Metres from the anchor beyond which the HUD warns you |
 | `sim` | `0` | `1` for desktop simulation |
-| `debug` | `1` | `0` to hide the telemetry panel |
+| `ui` | `minimal` | `minimal` (arrow + warnings), `none` (arrow only), `debug` (everything) |
+| `debug` | — | Shorthand for `?ui=debug` |
+| `fullscreen` | `1` | `0` to stay windowed |
 
 Example: `?mode=relative&distance=10&bearing=270&height=3`
 
 ## The model
 
-**Keep the GLB.** glTF/GLB is the native format of the web — three.js loads it
-directly, it carries PBR materials, skinning and animation in one binary file,
-and it's an open Khronos standard. FBX is a proprietary interchange format; the
-three.js FBX loader is heavier, slower, and supports fewer material features.
-If you're handed an FBX, convert it to GLB rather than shipping it.
+Two are bundled, chosen with `?model=`. [src/models.js](src/models.js) holds the
+presets; the default is the aircraft.
 
-`witch.glb` as supplied is 8.2 MB, which is a rough download over mobile data.
-Almost all of that is four 2048px PNGs — the geometry is only 13k triangles.
+**Keep GLB, not FBX.** glTF/GLB is the native format of the web — three.js loads
+it directly, it carries PBR materials, skinning and animation in one binary
+file, and it's an open Khronos standard. FBX is a proprietary interchange
+format; the three.js FBX loader is heavier, slower, and supports fewer material
+features. If you're handed an FBX, convert it rather than shipping it.
+
+Both models are auto-scaled to a real-world size, so you needn't care what units
+they were authored in. The aircraft is normalised along its **longest axis**
+(you think about an aeroplane in wingspan, not height); the witch is normalised
+by **height**.
+
+### The flight circuit
+
+The aircraft GLB's own clip is a gentle vertical bob with a few degrees of
+wobble — good secondary motion, but it never leaves the spot. So the clip keeps
+playing for life, and [src/flight.js](src/flight.js) supplies the travel on top:
+a **racetrack**, a straight leg with a 180 at each end.
+
+A racetrack rather than a circle or a figure-eight because those visibly double
+back through their own middle. A racetrack reads as an aircraft beating up and
+down a line — which is the point, because that line is meant to be a river.
+
+The path is parametrised by distance travelled, not by angle, so speed is
+constant everywhere and set in m/s. Bank angle comes from the path's actual
+curvature rather than keyframes, so it stays correct when you change the radius
+or the speed, and it's eased over `rolltime` because a real aircraft takes a
+moment to roll and the curvature jumps the instant a straight meets a turn.
+
+**Pointing it down the river.** `FLIGHT_HEADING` in
+[src/location.js](src/location.js) takes a true compass bearing — measure it by
+dropping two Google Maps pins along the stretch you want and taking the bearing
+between them. The two alternatives, `across` and `along`, resolve against your
+line of sight instead and are for testing away from the site: `across` keeps the
+aircraft sweeping left and right in front of you wherever you stand.
+
+The circuit is centred on the anchor, so put the anchor **on the water**, set
+the heading to the river's bearing, and keep `turn` inside half the river's
+width or the aircraft will bank over the bank.
+
+**Distance is the thing to get right.** Defaults are a 250 m leg at 50 m
+altitude, one lap every 38 seconds. A 14 m aircraft then looks like this:
+
+| Watching from | Range | On screen | Elevation | Sweeps across |
+|---|---|---|---|---|
+| 50 m | 71 m | 184 px | 45° | 136° |
+| 150 m | 158 m | 83 px | 18° | 80° |
+| 300 m | 304 m | 43 px | 9° | 45° |
+| 600 m | 602 m | 22 px | 5° | 22° |
+
+At a few hundred metres it is genuinely small — because a real aircraft that far
+away *is* small, and inflating it is the fastest way to make it stop looking
+real. It leaves the frame at the ends of the circuit, which is intended: people
+pan to follow it. The live **Subject** row in `?debug=1` shows the current range
+and pixel size, so you can judge this on site rather than guessing.
+
+The direction arrow tracks the aircraft itself, not the anchor — on this circuit
+they are up to 165 m apart, and an anchor-locked arrow points at empty sky.
+
+Two things worth knowing if you swap in a different aircraft: the nose must be
+brought onto the direction of travel with `noseOffset` in the preset (this one
+is authored nose-along-−X, so it needs −90°), and the flight path owns
+horizontal motion only — vertical is deliberately left to the clip.
+
+### Shrinking a model
 
 ```bash
-npm run optimize
+npm run optimize                                    # the witch
+node tools/optimize-model.mjs airplane_animation.glb public/models/airplane.glb
 ```
 
-resizes textures to 1024px and re-encodes them as WebP, writing
-`public/models/witch.glb` at **1.2 MB (85% smaller)** with no visible
-difference at AR viewing distances. Re-run it whenever the source model
-changes. Tune with `MAX_TEXTURE=512 WEBP_QUALITY=75 npm run optimize`.
-
-The model is auto-scaled to `height` metres and its feet placed on the ground,
-so you don't need to care what units it was authored in. The first animation
-clip (`Take 001`) loops continuously.
+Resizes textures to 1024px and re-encodes as WebP. The witch went 8.2 MB →
+1.2 MB, the aircraft 418 KB → 205 KB — the latter mostly by cutting a 4096²
+texture down, which matters more for GPU memory than for download. Tune with
+`MAX_TEXTURE=512 WEBP_QUALITY=75`.
 
 ## Automated tests
 
@@ -140,10 +210,43 @@ npm test
 ```
 
 Builds, serves, and drives the real page in headless Chromium with a synthetic
-camera and a mocked GPS fix, across six placements. It checks that the model
+camera and a mocked GPS fix, across six placements plus four behavioural tests. It checks that the model
 downloads, the camera stream starts, the GPS fix lands the model at the right
 distance and bearing, the model actually rasterises at the correct physical
 size, and the direction arrow appears and hides when it should.
+
+The two movement tests are the ones that matter most for feel, and each catches
+something the static placements can't:
+
+- **`tools/walk-test.mjs`** holds one session open and moves the GPS fix
+  underneath it in 2 m steps, asserting she gets visibly bigger at every step.
+  Placement can be perfectly correct while movement feels dead.
+- **`tools/motion-test.mjs`** walks a simulated pedestrian past a 1 Hz GPS feed
+  and samples the rendered camera every frame, asserting the motion is
+  *continuous* rather than lurching. Its headline number is speed variability,
+  where 0 is perfectly constant motion:
+
+  | | raw GPS (`smooth=0`) | default (`smooth=1.2`) |
+  |---|---|---|
+  | speed variability | 7.80 | 0.08 |
+  | frames frozen between fixes | 98.3% | 0.5% |
+  | lag behind the fix | 0 m | 0.8 m |
+
+  Updates arriving promptly and updates *looking* smooth are different
+  properties, and only this test measures the second one.
+- **`tools/banner-test.mjs`** checks the status banner reflects actual state and
+  recovers from a GPS dropout, rather than stranding a stale error on screen.
+- **`tools/flight-test.mjs`** scrubs a full circuit and asserts the aircraft
+  actually translates, keeps its nose within 0.1° of the direction of travel,
+  banks both ways, and leaves vertical motion to the clip — which is still
+  running underneath. It also checks the path never doubles back through
+  itself, and that the direction arrow follows the aircraft rather than the
+  anchor. "Flying sideways", "sitting still" and "pointing at empty sky" all
+  look like nothing much on a phone screen at 300 m.
+
+The GPS placement tests run against `?model=witch` deliberately: they measure a
+stationary subject's apparent size, which the aircraft's own motion would
+confound.
 
 It also confirms the camera feed is playing and that nothing opaque is stacked
 in front of it — the passthrough video sits behind the canvas at `z-index: -100`,
@@ -164,6 +267,76 @@ What none of it can tell you: compass accuracy, magnetometer drift, real GPS
 jitter, sunlight legibility, or thermal throttling. Those need a phone and a
 pavement.
 
+## Troubleshooting
+
+**"The aircraft is tiny."** That is what 14 m at 300 m looks like. Check the
+Subject row in `?debug=1` for the real numbers before reaching for `?size=`;
+the honest fixes are a closer anchor or a lower `?alt=`.
+
+**"The distance isn't closing" / "she never appears."** You're almost certainly
+not at the site. `DEFAULT_MODE` is `'fixed'`, so the model is pinned to St John
+Street — from three miles away, walking 20 m is a real 20 m of progress and
+completely imperceptible, and the model is a sub-pixel speck. The HUD now says
+so explicitly past 200 m. Add `?mode=relative` to test where you are.
+
+**"She's the wrong size."** Adjust `?height=` — it's her real-world height in
+metres, and everything else scales from it.
+
+**"She's facing away from me."** `?yaw=180`, or `?faceuser=0` if she shouldn't
+turn to follow you at all.
+
+**"It's all drifting / swimming."** Check the Accuracy reading in the HUD. Above
+±25 m the content will visibly wander and there is nothing the code can do about
+it. Get away from buildings and wait for the fix to tighten.
+
+**"The camera is black."** The passthrough feed is a `<video>` behind the canvas
+at `z-index: -100`. Anything opaque painted over it — a background colour on
+`<body>`, for instance — hides it while the model still renders. `npm test`
+guards against this specific mistake.
+
+## Going frameless
+
+By default the overlay is just the direction arrow, plus a banner when
+something is actually wrong (no GPS, wrong postcode). `?ui=none` drops even
+that; `?debug=1` brings back the full telemetry panel.
+
+Removing the *browser's* chrome is a platform question, not a code one:
+
+| | How | Result |
+|---|---|---|
+| **Android Chrome** | Fullscreen API, requested on the Start AR tap | Fully frameless, automatic |
+| **iOS Safari** | No Fullscreen API on iPhone, at all | Chrome stays |
+| **iOS, installed** | Share → **Add to Home Screen**, launch from the icon | Fully frameless |
+
+There is no way for a web page to hide Safari's chrome on an iPhone. The
+manifest and `apple-mobile-web-app-capable` are already set, so installing to
+the Home Screen launches with no chrome — that is the whole of the iOS story,
+and it is worth telling testers explicitly.
+
+### If frameless matters more than GPS
+
+`TCCCAR_WebServer` in this workspace achieves a frameless experience a
+completely different way: `<model-viewer>` with
+`ar-modes="webxr scene-viewer quick-look"` hands the model to the operating
+system's own AR viewer — **AR Quick Look** on iOS, **Scene Viewer** on Android.
+Those open as native full-screen overlays, so there is no browser chrome
+anywhere.
+
+The catch is that they are *surface* trackers. They find a floor or a table in
+front of you and put the model on it. Neither accepts a coordinate, so **GPS
+anchoring is not possible in that mode** — you cannot ask Quick Look to place
+something at 51.524306, -0.101917. It's a genuine either/or:
+
+| | Native handoff (model-viewer) | In-page (this project) |
+|---|---|---|
+| Browser chrome | None, anywhere | None on Android; Home Screen on iOS |
+| Anchored to | A surface in front of you | A real-world coordinate |
+| GPS | Not available | Yes |
+| Needs a USDZ as well as a GLB | Yes, for iOS | No |
+
+If the brief is "she stands at 174 St John Street", this project is the only one
+of the two that can do it.
+
 ## Deploying
 
 ```bash
@@ -181,7 +354,9 @@ Two hard requirements:
 ## Known constraints
 
 - **Accuracy is bounded by consumer GPS**, roughly ±5–20 m outdoors. Content
-  will drift by metres as fixes update. Don't design anything that requires the
+  will drift by metres as fixes update. The follow camera turns that drift into
+  gradual motion rather than visible pops, but it can't invent precision that
+  isn't there — and it trades about 0.8 m of lag for the smoothness. Don't design anything that requires the
   model to sit precisely on a specific paving slab — for that you need marker
   or image tracking, or a VPS product like Niantic's.
 - **iOS needs a tap and an explicit grant** for motion sensors. That's what the

@@ -61,12 +61,64 @@ for (const scenario of SCENARIOS) {
   if (code !== 0) failed.push(scenario.name);
 }
 
+// Static placement is covered above; this one checks she responds to movement.
+console.log(`
+──── walking towards her ────`);
+{
+  const child = run('node', ['tools/walk-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('walking towards her');
+}
+
+// And this one checks that the movement is smooth rather than lurching.
+console.log(`
+──── walking smoothly ────`);
+{
+  const child = run('node', ['tools/motion-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('walking smoothly');
+}
+
+// Being in the wrong place must not look like the AR being broken.
+console.log(`\n──── status banner ────`);
+{
+  const child = run('node', ['tools/banner-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('status banner');
+}
+
+// Frameless presentation: our overlay out of the way, browser chrome dismissed.
+console.log(`\n──── minimal interface ────`);
+{
+  const child = run('node', ['tools/chrome-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('minimal interface');
+}
+
+// The aircraft's authored circuit, layered over the GLB's own bob.
+console.log(`\n──── flight circuit ────`);
+{
+  const child = run('node', ['tools/flight-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('flight circuit');
+}
+
 server.kill();
 
 console.log(`\n${'═'.repeat(50)}`);
 if (failed.length) {
-  console.error(`✖ ${failed.length}/${SCENARIOS.length} scenarios failed:`);
+  console.error(`✖ ${failed.length}/${SCENARIOS.length + 5} scenarios failed:`);
   for (const name of failed) console.error(`   - ${name}`);
   process.exit(1);
 }
-console.log(`✔ all ${SCENARIOS.length} scenarios passed`);
+console.log(`✔ all ${SCENARIOS.length + 5} scenarios passed`);
