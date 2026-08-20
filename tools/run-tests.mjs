@@ -4,6 +4,7 @@
  */
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { INSTALLATION } from '../src/location.js';
 
 // The dev cert is self-signed; every request in this file targets our own server.
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -17,7 +18,15 @@ const SCENARIOS = [
   { name: 'far, south west', env: { MODE: 'relative', DISTANCE: '50', BEARING: '225' } },
   { name: 'equator (no Mercator distortion)', env: { MODE: 'relative', DISTANCE: '20', LAT: '0' } },
   { name: 'high latitude (worst distortion)', env: { MODE: 'relative', DISTANCE: '20', LAT: '68.5' } },
-  { name: 'fixed site coordinates', env: { MODE: 'fixed', LAT: '51.050161', LON: '3.725090' } },
+  {
+    // Stand 30 m south of whatever location.js is currently configured for.
+    name: `fixed site (${INSTALLATION.label})`,
+    env: {
+      MODE: 'fixed',
+      LAT: String(INSTALLATION.lat - 30 / 111_320),
+      LON: String(INSTALLATION.lon),
+    },
+  },
 ];
 
 const run = (cmd, args, options = {}) =>

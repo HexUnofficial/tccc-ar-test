@@ -61,14 +61,15 @@ bearing to the model.
 
 ## Defining the location
 
-Edit [src/location.js](src/location.js):
+Edit [src/location.js](src/location.js). It's currently set to **174 St John
+Street, London EC1V 4DE**:
 
 ```js
 export const INSTALLATION = {
-  label: 'Front entrance',
-  lat: 51.050430,
-  lon: 3.725090,
-  elevation: 0,   // metres above your feet
+  label: '174 St John Street, London',
+  lat: 51.524333,     // 51 deg 31' 27.6" N
+  lon: -0.102722,     //  0 deg 06' 09.8" W
+  elevation: 0,       // metres above your feet
 };
 
 export const DEFAULT_MODE = 'fixed';   // 'relative' while testing
@@ -76,8 +77,11 @@ export const DEFAULT_MODE = 'fixed';   // 'relative' while testing
 
 To get the numbers: open Google Maps, right-click the exact spot, and click the
 `lat, lon` pair at the top of the menu to copy it. Decimal degrees, north and
-east positive. Six decimals is about 10 cm — finer than GPS can resolve, so
-don't agonise.
+east positive — **west of Greenwich is negative**, which is most of the UK. Six
+decimals is about 10 cm, finer than GPS can resolve, so don't agonise.
+
+Degrees/minutes/seconds convert as `deg + min/60 + sec/3600`, then negate for
+west or south.
 
 Set `DEFAULT_MODE` to `'fixed'` when the coordinates are real. Leave it at
 `'relative'` and the model is placed a set distance from wherever you're
@@ -141,7 +145,22 @@ downloads, the camera stream starts, the GPS fix lands the model at the right
 distance and bearing, the model actually rasterises at the correct physical
 size, and the direction arrow appears and hides when it should.
 
-What it **cannot** tell you: compass accuracy, magnetometer drift, real GPS
+It also confirms the camera feed is playing and that nothing opaque is stacked
+in front of it — the passthrough video sits behind the canvas at `z-index: -100`,
+and it is very easy to hide it behind a background colour by accident.
+
+For a picture rather than a pass/fail:
+
+```bash
+npm run build && npx vite preview --port 4173 &
+npm run screenshot          # -> .tmp/shot-ar.png
+```
+
+That one uses the full Chromium build, which composites the (synthetic) camera
+feed into the image; the headless shell used by `npm test` does not, so frames
+captured there always look black.
+
+What none of it can tell you: compass accuracy, magnetometer drift, real GPS
 jitter, sunlight legibility, or thermal throttling. Those need a phone and a
 pavement.
 

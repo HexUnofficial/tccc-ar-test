@@ -8,6 +8,7 @@
  */
 import { chromium } from 'playwright';
 import { writeFile } from 'node:fs/promises';
+import { INSTALLATION } from '../src/location.js';
 
 const BASE = process.env.BASE_URL ?? 'https://localhost:4173';
 const FIX = {
@@ -51,6 +52,15 @@ console.log('✔ model downloaded, gate enabled');
 await page.click('#gate-start');
 await page.waitForSelector('#gate', { state: 'hidden', timeout: 20_000 });
 console.log('✔ camera stream acquired, gate dismissed');
+
+await page.waitForFunction(
+  () => {
+    const v = document.querySelector('video');
+    return v && v.videoWidth > 0 && v.readyState >= 2;
+  },
+  null,
+  { timeout: 20_000 },
+);
 
 // The passthrough feed is a <video> behind the canvas. Headless Chromium won't
 // composite it into a screenshot, so instead we check it is playing and that
@@ -124,6 +134,10 @@ if (MODE === 'relative') {
   if (Math.abs(world.x - expectedX) > 0.5) failures.push(`model x=${world.x.toFixed(1)}, expected ${expectedX.toFixed(1)}`);
   if (Math.abs(world.z - expectedZ) > 0.5) failures.push(`model z=${world.z.toFixed(1)}, expected ${expectedZ.toFixed(1)}`);
 } else {
+  const [anchorLat, anchorLon] = readings.anchor.split(',').map(Number);
+  if (Math.abs(anchorLat - INSTALLATION.lat) > 1e-5 || Math.abs(anchorLon - INSTALLATION.lon) > 1e-5) {
+    failures.push(`anchor ${readings.anchor} does not match INSTALLATION ${INSTALLATION.lat}, ${INSTALLATION.lon}`);
+  }
   // The world offset must agree with the haversine distance the HUD reports.
   const planar = Math.hypot(world.x, world.z);
   const reported = Number.parseFloat(readings.distance);
