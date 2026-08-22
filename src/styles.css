@@ -127,11 +127,6 @@ body { background: transparent; }
 #panel dt { opacity: 0.6; }
 #panel dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
 
-/*
- * The livery red sampled straight from the aircraft's fuselage texture
- * (tools/optimize-geometry.mjs output), so the app opens in the same red as
- * the model it's about to show you.
- */
 #gate {
   position: fixed;
   inset: 0;
@@ -140,9 +135,12 @@ body { background: transparent; }
   place-items: center;
   padding: 1.5rem;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 50% -10%, rgb(255 255 255 / 0.18), transparent 55%),
-    linear-gradient(160deg, #ff4141 0%, #f60001 35%, #c40008 100%);
+  /*
+   * The brand red, flat. It was a gradient sampled off the fuselage texture,
+   * which meant the actual colour landed somewhere between three values and
+   * matched the specified one nowhere. A named hex should be the colour you get.
+   */
+  background: #F40000;
 }
 
 /* The plane's tow banner has the same two diagonal bands; this is that motif. */
@@ -180,7 +178,7 @@ body { background: transparent; }
   border: 0;
   border-radius: 999px;
   background: #fff;
-  color: #e60003;
+  color: #F40000;
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.04em;
