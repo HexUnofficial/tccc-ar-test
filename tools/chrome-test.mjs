@@ -39,7 +39,7 @@ async function open(query) {
  * The default is `none`, not `minimal`: this runs over a live camera feed in
  * front of an audience, so the arrow is the only overlay that earns its place.
  * The cost is that a denied permission or a lost fix says nothing at all, which
- * is what ?debug=1 is for — so that trade is asserted here rather than left to
+ * is what ?ui=debug is for — so that trade is asserted here rather than left to
  * be discovered on site.
  */
 {
@@ -86,13 +86,29 @@ async function open(query) {
   await ctx.close();
 }
 
-// --- ?debug=1: the full instrument panel ---
+// --- ?ui=debug: the full instrument panel ---
+{
+  const { ctx, page } = await open('?ui=debug&mode=relative&distance=20&bearing=0');
+  await page.waitForTimeout(500);
+  check('ui=debug shows the panel', await page.isVisible('#panel'));
+  check('ui=debug shows the info button', await page.isVisible('#panel-toggle'));
+  await page.screenshot({ path: '.tmp/ui-debug.png' });
+  await ctx.close();
+}
+
+/*
+ * --- ?debug=1 cannot turn the interface on ---
+ *
+ * The picker used to stamp debug=1 into every URL and QR it emitted, so codes
+ * that are already printed and handed out carry it. Those have to open clean,
+ * or the instrument panel lands over the camera feed for whoever scans one.
+ */
 {
   const { ctx, page } = await open('?debug=1&mode=relative&distance=20&bearing=0');
   await page.waitForTimeout(500);
-  check('debug shows the panel', await page.isVisible('#panel'));
-  check('debug shows the info button', await page.isVisible('#panel-toggle'));
-  await page.screenshot({ path: '.tmp/ui-debug.png' });
+  check('debug=1 in a link does not show the panel', !(await page.isVisible('#panel')));
+  check('debug=1 in a link does not show the info button', !(await page.isVisible('#panel-toggle')));
+  check('debug=1 still keeps the arrow', await page.isVisible('#arrow'));
   await ctx.close();
 }
 
@@ -138,4 +154,4 @@ if (failures.length) {
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
-console.log('\n✔ PASSED — minimal by default, full detail on request');
+console.log('\n✔ PASSED — the arrow alone by default, full detail only on request');
