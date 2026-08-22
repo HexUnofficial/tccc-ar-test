@@ -5,6 +5,15 @@
  * right handle for an aircraft (you think in wingspan, not in height).
  * `scaleBy: 'height'` normalises the vertical extent, which is what you want
  * for anything standing on the ground.
+ *
+ * Every `url` carries a `?v=` matching the file's own content (first 8 hex of
+ * its sha256 — `sha256sum public/models/*.glb`). netlify.toml marks `/models/*`
+ * `immutable, max-age=31536000`, which tells every browser and CDN in between
+ * to never revalidate that URL again — so replacing the GLB at the same path
+ * silently keeps serving whichever bytes a client cached first. That's what
+ * made the textured aircraft read as flat white after it shipped: the file on
+ * disk had textures, but nobody's browser was still asking. Bump the `v` to
+ * match the new hash whenever you re-run a `model:*` script.
  */
 export const MODELS = {
   /**
@@ -16,7 +25,7 @@ export const MODELS = {
    * needs turning through 180 degrees to fly down -Z.
    */
   tccc: {
-    url: 'models/tccc-airplane.glb',
+    url: 'models/tccc-airplane.glb?v=2e37b3a9',
     scaleBy: 'size',
     /*
      * Length of the whole assembly — aircraft, tow line and banner. Realistic
@@ -34,7 +43,7 @@ export const MODELS = {
   },
 
   airplane: {
-    url: 'models/airplane.glb',
+    url: 'models/airplane.glb?v=0ce16037',
     /** Longest dimension in metres — roughly a light aircraft's wingspan. */
     scaleBy: 'size',
     size: 14,
@@ -57,7 +66,7 @@ export const MODELS = {
   },
 
   witch: {
-    url: 'models/witch.glb',
+    url: 'models/witch.glb?v=92a86c86',
     scaleBy: 'height',
     size: 2.4,
     behaviour: 'ground',

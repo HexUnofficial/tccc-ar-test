@@ -31,7 +31,7 @@ await page.click('#gate-start');
 await page.waitForFunction(() => window.__ar?.model, { timeout: 20_000 });
 
 const config = await page.evaluate(() => ({
-  model: window.__ar.model.preset.url.split('/').pop(),
+  model: window.__ar.model.preset.url.split('/').pop().split('?')[0],
   behaviour: window.__ar.model.preset.behaviour,
   clip: window.__ar.model.clipName,
   hasFlightPath: Boolean(window.__ar.flightPath),
