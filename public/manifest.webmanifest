@@ -1,6 +1,6 @@
 {
-  "name": "TCCC GPS AR",
-  "short_name": "GPS AR",
+  "name": "TCCC — Are You Ready?",
+  "short_name": "Ready?",
   "description": "GPS-anchored augmented reality for the mobile web.",
   "start_url": "./",
   "scope": "./",

@@ -313,8 +313,9 @@ Two passes, deliberately separate processes:
   1024px, re-encode as WebP. The witch went 8.2 MB → 1.2 MB.
 - **[tools/optimize-geometry.mjs](tools/optimize-geometry.mjs)** — geometry:
   drop constant animation channels, weld, simplify to 25%, Draco. Run on the
-  PNG-re-encoded export, the TCCC aircraft goes 11 MB → 4.0 MB and 289k
-  triangles → 83k, textures intact.
+  PNG-re-encoded export, the TCCC aircraft goes ~15 MB → ~7 MB and 289k
+  triangles → ~95k, textures intact. Exact numbers move with each new export
+  from the 3D team; `npm run model:tccc` prints the current ones.
 
 They cannot share a process: importing `@gltf-transform/functions` leaves sharp
 unable to encode, out of libvips. Tune with `MAX_TEXTURE=512 WEBP_QUALITY=75`
