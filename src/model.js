@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { config } from './config.js';
 
 /**
@@ -41,9 +42,19 @@ function createGroundShadow(radius) {
 export async function loadModel(onProgress) {
   const preset = config.model;
 
-  const gltf = await new GLTFLoader().loadAsync(preset.url, (event) => {
+  /*
+   * Draco takes the aircraft from 27 MB to 0.6 MB, which is the difference
+   * between usable and not on mobile data. The decoder is served from our own
+   * origin rather than a CDN: it is ~250 KB of wasm, fetched only for models
+   * that actually need it, and one less third party to be down at the riverbank.
+   */
+  const draco = new DRACOLoader().setDecoderPath(`${import.meta.env.BASE_URL}draco/`);
+  const loader = new GLTFLoader().setDRACOLoader(draco);
+
+  const gltf = await loader.loadAsync(preset.url, (event) => {
     if (event.lengthComputable) onProgress?.(event.loaded / event.total);
   });
+  draco.dispose();
 
   const model = gltf.scene;
 

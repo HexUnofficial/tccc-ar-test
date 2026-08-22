@@ -7,6 +7,32 @@
  * for anything standing on the ground.
  */
 export const MODELS = {
+  /**
+   * The TCCC banner-towing aircraft, converted from FBX (see tools/fbx-to-glb.mjs)
+   * and Draco-compressed: 289k triangles down to 83k, 27 MB down to 0.6 MB.
+   *
+   * It has no animation clip of any kind, so the flight path is the only motion.
+   * The banner trails behind the aircraft along its +Z, which is why the nose
+   * needs turning through 180 degrees to fly down -Z.
+   */
+  tccc: {
+    url: 'models/tccc-airplane.glb',
+    scaleBy: 'size',
+    /*
+     * Length of the whole assembly — aircraft, tow line and banner. Realistic
+     * would be about 30 m, which leaves the banner roughly 3 m tall and quite
+     * unreadable from across a river. 60 m is a deliberate compromise: at a few
+     * hundred metres there is no nearby reference to judge scale against, so
+     * the exaggeration costs little and the banner is the entire point.
+     */
+    size: 60,
+    behaviour: 'flight',
+    groundShadow: false,
+    faceUser: false,
+    noseOffset: 180,
+    farWarning: 1500,
+  },
+
   airplane: {
     url: 'models/airplane.glb',
     /** Longest dimension in metres — roughly a light aircraft's wingspan. */
@@ -42,4 +68,4 @@ export const MODELS = {
   },
 };
 
-export const DEFAULT_MODEL = 'airplane';
+export const DEFAULT_MODEL = 'tccc';

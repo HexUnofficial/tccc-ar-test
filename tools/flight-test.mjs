@@ -186,14 +186,23 @@ if (Number.isFinite(labelled) && Math.abs(labelled - expected) > Math.max(2, exp
   failures.push(`arrow reads "${pointing.facingAnchor.label}" but the aircraft is ${pointing.planeRange.toFixed(0)} m away`);
 }
 
-// The bundled clip must still be running underneath the authored travel.
-const clipAdvances = await page.evaluate(async () => {
-  const before = window.__ar.model.mixer?.time ?? 0;
-  await new Promise((r) => setTimeout(r, 400));
-  return (window.__ar.model.mixer?.time ?? 0) - before;
-});
-console.log(`  bundled clip     advanced ${clipAdvances.toFixed(2)}s in 0.4s`);
-if (clipAdvances < 0.2) failures.push('the model\'s own animation clip is not playing');
+/*
+ * If the model ships a clip it must keep running underneath the authored
+ * travel - but not every model has one. The TCCC aircraft has no animation at
+ * all, so the flight path is its only motion; asserting a clip unconditionally
+ * would just be asserting which model happens to be the default.
+ */
+if (config.clip) {
+  const clipAdvances = await page.evaluate(async () => {
+    const before = window.__ar.model.mixer?.time ?? 0;
+    await new Promise((r) => setTimeout(r, 400));
+    return (window.__ar.model.mixer?.time ?? 0) - before;
+  });
+  console.log(`  bundled clip     "${config.clip}" advanced ${clipAdvances.toFixed(2)}s in 0.4s`);
+  if (clipAdvances < 0.2) failures.push(`the model clip "${config.clip}" is not playing`);
+} else {
+  console.log('  bundled clip     none - the flight path is the only motion');
+}
 
 failures.push(...errors);
 await browser.close();
