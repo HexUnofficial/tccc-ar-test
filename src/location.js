@@ -8,12 +8,13 @@
  */
 export const INSTALLATION = {
   // Set from the map picker: on the Thames, with the run following the river
-  // east on a bearing of 101.1°. NOTE: `label` still reads 174 St John Street,
-  // which is no longer where these coordinates are — it is only used for the
-  // HUD's "you are N m from X" warning, so update it when convenient.
-  label: '174 St John Street, London',
-  lat: 51.5104861,
-  lon: -0.1009996,
+  // east on a bearing of 95.8°. `label` only ever appeared in the HUD's "you
+  // are N m from X" warning, and the default UI no longer shows that warning
+  // at all (see config.js `ui`), so it is inert unless you turn the HUD back
+  // on with ?debug=1.
+  label: 'Set me',
+  lat: 51.5108394,
+  lon: -0.0946055,
   /**
    * Metres above the viewer's feet. Leave at 0 for something standing on the
    * ground with you; raise it to put the model on a roof or a plinth.
@@ -55,7 +56,7 @@ export const LOCKED = false;
  * drop two Google Maps pins along the stretch you want and take the bearing
  * between them.
  */
-export const FLIGHT_HEADING = 101.1;
+export const FLIGHT_HEADING = 95.8;
 
 /** Relative-mode placement: how far away, and on what compass bearing. */
 export const RELATIVE_PLACEMENT = {
@@ -89,7 +90,7 @@ export const RELATIVE_PLACEMENT = {
  * radius a 60 m/s aircraft actually holds at 45 degrees — fixes both.
  */
 export const FLIGHT = {
-  length: 2436,
+  length: 2027,
   turnRadius: 20,
   altitude: 50,
   speed: 60,

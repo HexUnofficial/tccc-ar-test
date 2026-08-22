@@ -33,7 +33,15 @@ async function open(query) {
   return { ctx, page };
 }
 
-// --- default: arrow only ---
+/*
+ * --- default: the arrow and nothing else, ever ---
+ *
+ * The default is `none`, not `minimal`: this runs over a live camera feed in
+ * front of an audience, so the arrow is the only overlay that earns its place.
+ * The cost is that a denied permission or a lost fix says nothing at all, which
+ * is what ?debug=1 is for — so that trade is asserted here rather than left to
+ * be discovered on site.
+ */
 {
   const { ctx, page } = await open('?mode=relative&distance=20&bearing=0');
   await page.waitForTimeout(500);
@@ -45,17 +53,30 @@ async function open(query) {
   const welcome = await page.evaluate(() => document.getElementById('status').textContent);
   check('no informational banner', welcome === '', `saw "${welcome}"`);
 
-  // A real problem still gets through.
+  // Nor should a real problem, by default.
   await page.evaluate(() => window.__ar.locar.emit('gpserror', { code: 2, message: 'position unavailable' }));
   await page.waitForTimeout(200);
-  check('errors still surface', await page.isVisible('#status'));
+  check('even errors stay silent by default', !(await page.isVisible('#status')));
 
   check('fullscreen requested', await page.evaluate(() => document.fullscreenElement !== null));
-  await page.screenshot({ path: '.tmp/ui-minimal.png' });
+  await page.screenshot({ path: '.tmp/ui-default.png' });
   await ctx.close();
 }
 
-// --- ?ui=none: nothing but the arrow, ever ---
+// --- ?ui=minimal: the arrow, plus a banner when something is actually wrong ---
+{
+  const { ctx, page } = await open('?ui=minimal&mode=relative&distance=20&bearing=0');
+  await page.waitForTimeout(500);
+  const welcome = await page.evaluate(() => document.getElementById('status').textContent);
+  check('minimal hides informational banners', welcome === '', `saw "${welcome}"`);
+  check('minimal hides the telemetry panel', !(await page.isVisible('#panel')));
+  await page.evaluate(() => window.__ar.locar.emit('gpserror', { code: 2, message: 'position unavailable' }));
+  await page.waitForTimeout(200);
+  check('minimal surfaces errors', await page.isVisible('#status'));
+  await ctx.close();
+}
+
+// --- ?ui=none: same as the default, asked for explicitly ---
 {
   const { ctx, page } = await open('?ui=none&mode=relative&distance=20&bearing=0');
   await page.evaluate(() => window.__ar.locar.emit('gpserror', { code: 2, message: 'gone' }));

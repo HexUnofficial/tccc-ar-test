@@ -197,9 +197,14 @@ export const config = {
    *   debug    everything, including the live telemetry panel
    *   none     the arrow alone, nothing else, ever
    *
+   * Defaults to `none`: over a live camera feed in front of an audience, the
+   * arrow is the only overlay that earns its place. Note what that costs — a
+   * denied location permission or a lost fix now says nothing at all, so if the
+   * aircraft fails to appear on site, reach for `?debug=1` to find out why.
+   *
    * `?debug=1` is kept as a shorthand for `?ui=debug`.
    */
-  ui: flag('debug', false) ? 'debug' : (params.get('ui') ?? 'minimal'),
+  ui: flag('debug', false) ? 'debug' : (params.get('ui') ?? 'none'),
 
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),

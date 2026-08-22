@@ -172,8 +172,12 @@ function render() {
     alt: String(state.altitude),
     speed: String(state.speed),
     size: String(state.size),
-    debug: '1',
   });
+  /*
+   * Deliberately no debug=1. These links are what gets scanned, previewed and
+   * shown to people, so they should look exactly like the deployed experience —
+   * arrow only. Add ?debug=1 by hand when you actually want the telemetry.
+   */
   /*
    * Resolve against the containing directory rather than string-stripping
    * "setup.html": the dev server also serves this page at /setup, where the
