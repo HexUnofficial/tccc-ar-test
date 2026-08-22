@@ -87,6 +87,46 @@ Set `DEFAULT_MODE` to `'fixed'` when the coordinates are real. Leave it at
 `'relative'` and the model is placed a set distance from wherever you're
 standing, which is what makes it testable anywhere.
 
+## Placing it on the map
+
+```bash
+npm run dev          # then open /setup.html
+```
+
+Two things have to be decided on a map and can't sensibly be typed: the exact
+point on the water, and the bearing of the river through it. A postcode gives
+you neither — it's a delivery *area*, and its centroid can be tens of metres out
+and is never on a river.
+
+So the two pins are the **two ends of the run**: the aircraft beats back and
+forth between them. Everything the AR page needs falls out of that pair — the
+anchor is their midpoint, the heading is the bearing from A to B, and the leg
+length is the distance between them. The page draws the **actual circuit** the
+aircraft will fly —
+sampled from the same `createFlightPath` the AR page uses, not an approximation
+— so you can see at a glance whether it stays over the water or banks over the
+embankment. Sliders for leg length, turn radius, altitude and speed update it
+live.
+
+It gives you back two things: a URL to test with (plus a QR code, so you can
+pick on a laptop and scan it with the phone), and a snippet to paste into
+[src/location.js](src/location.js) when you're happy.
+
+**It is a development tool and is never deployed.** `npm run build` leaves
+`setup.html` out of the bundle entirely; `INCLUDE_SETUP=1 npm run build` opts
+back in if you ever want it somewhere private. `npm test` asserts the exclusion,
+because "we accidentally shipped the page that lets anyone move the aircraft" is
+not a thing you want to discover later.
+
+### Locking the real thing down
+
+Every setting here is overridable from the query string, which is what makes it
+tunable in the field — and also means anyone can drag the aircraft somewhere
+else by editing the URL. Set `LOCKED = true` in
+[src/location.js](src/location.js) before going live: the parameters that decide
+*where* the experience is (`lat`, `lon`, `mode`, `heading`, `elev`) are then
+ignored, while the harmless presentation ones still work.
+
 ## Tuning from the phone
 
 Every setting has a query parameter, so you can retune in the field from the
@@ -236,6 +276,9 @@ something the static placements can't:
   properties, and only this test measures the second one.
 - **`tools/banner-test.mjs`** checks the status banner reflects actual state and
   recovers from a GPS dropout, rather than stranding a stale error on screen.
+- **`tools/setup-test.mjs`** drives the map picker, takes the URL it emits,
+  opens it, and checks the aircraft really is anchored and aimed where the map
+  said. Checking the picker's own readout would prove nothing about the handoff.
 - **`tools/flight-test.mjs`** scrubs a full circuit and asserts the aircraft
   actually translates, keeps its nose within 0.1° of the direction of travel,
   banks both ways, and leaves vertical motion to the clip — which is still
@@ -339,17 +382,30 @@ of the two that can do it.
 
 ## Deploying
 
-```bash
-npm run build      # -> dist/
+Deployed to **Netlify** from `main`. [netlify.toml](netlify.toml) pins the build
+so it is reproducible from the repo rather than from the dashboard:
+
+```toml
+command = "npm run build"     # note: no INCLUDE_SETUP, so the picker is omitted
+publish = "dist"
+NODE_VERSION = "22"           # Vite 8 needs a modern Node
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 ```
 
-Static output — host it on anything (Vercel, Netlify, S3, Cloudflare Pages).
-Two hard requirements:
+That last one matters: Playwright is a devDependency used only by the tests, and
+its install step would otherwise pull ~150 MB of browsers into every deploy.
+
+Two hard requirements, both of which Netlify satisfies by default:
 
 - **HTTPS.** Camera, geolocation and motion sensors are all refused on plain
   HTTP. There is no way around this.
-- **Correct MIME type for `.glb`** (`model/gltf-binary`). Most hosts get this
-  right; if the model silently fails to load, check this first.
+- **A correct MIME type for `.glb`.** Set explicitly in `netlify.toml` along
+  with a long cache lifetime, since the models are content-hashed by nothing and
+  change rarely.
+
+The build is about 210 KB of gzipped JavaScript plus a 205 KB aircraft — small
+enough to load over mobile data at the riverbank, which is the only test that
+counts.
 
 ## Known constraints
 

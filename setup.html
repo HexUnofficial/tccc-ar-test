@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flight path setup — TCCC AR</title>
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="/src/setup/styles.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <aside id="panel">
+    <header>
+      <h1>Flight path setup</h1>
+      <p>Drag <b class="pin anchor">A</b> and <b class="pin heading">B</b> to the two ends of the run.
+         The aircraft beats back and forth between them; the blue outline is the actual
+         circuit it will fly, turns included.</p>
+    </header>
+
+    <label class="field">
+      <span>Jump to coordinates</span>
+      <input id="jump" type="text" placeholder="51.5075, -0.0877" autocomplete="off">
+    </label>
+
+    <div class="readout">
+      <dl>
+        <dt>Anchor</dt><dd id="r-anchor">—</dd>
+        <dt>Heading</dt><dd id="r-heading">—</dd>
+        <dt>Run length</dt><dd id="r-length">—</dd>
+        <dt>Legs apart</dt><dd id="r-apart">—</dd>
+        <dt>Lap</dt><dd id="r-lap">—</dd>
+      </dl>
+    </div>
+
+    <div class="sliders">
+      <label><span>Run length <b id="v-length"></b></span>
+        <input id="length" type="range" min="50" max="600" step="10" value="250"></label>
+      <label><span>Turn radius <b id="v-turn"></b></span>
+        <input id="turn" type="range" min="10" max="120" step="5" value="40"></label>
+      <label><span>Altitude <b id="v-alt"></b></span>
+        <input id="alt" type="range" min="10" max="200" step="5" value="50"></label>
+      <label><span>Speed <b id="v-speed"></b></span>
+        <input id="speed" type="range" min="5" max="60" step="1" value="20"></label>
+    </div>
+
+    <section>
+      <h2>Test it now</h2>
+      <div class="row">
+        <button id="preview" type="button" class="primary">Preview here</button>
+        <button id="open-ar" type="button">Open for real</button>
+        <button id="copy-url" type="button">Copy</button>
+      </div>
+      <p class="muted small">
+        <b>Preview here</b> opens the AR page on this machine with simulated GPS —
+        drag to look, WASD to walk. <b>Open for real</b> uses this device's actual
+        location and camera, which only makes sense on a phone at the site.
+      </p>
+      <input id="url" type="text" readonly>
+      <div class="qr">
+        <canvas id="qr"></canvas>
+        <p id="qr-note">Scan to open on a phone. Both devices must be on the same
+           network, and you'll have to accept the certificate warning.</p>
+        <p id="qr-warning" hidden>This QR points at <code>localhost</code>, which on a
+           phone means the phone itself. Reopen this page using the
+           <b>Network:</b> address <code>npm run dev</code> printed, then rescan.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Ship it</h2>
+      <p class="muted">Paste into <code>src/location.js</code> to make this the permanent site.</p>
+      <div class="row">
+        <textarea id="snippet" rows="9" readonly></textarea>
+      </div>
+      <button id="copy-snippet" type="button">Copy snippet</button>
+    </section>
+
+    <footer>
+      This page is a development tool. It is excluded from
+      <code>npm run build</code> and never deployed.
+    </footer>
+  </aside>
+
+  <script type="module" src="/src/setup/main.js"></script>
+</body>
+</html>

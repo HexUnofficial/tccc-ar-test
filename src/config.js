@@ -3,10 +3,16 @@
  * parameter, which is what makes field testing bearable — you can retune
  * placement, scale and facing from the phone's address bar without a redeploy.
  */
-import { DEFAULT_MODE, FLIGHT_HEADING, INSTALLATION, RELATIVE_PLACEMENT } from './location.js';
+import { DEFAULT_MODE, FLIGHT_HEADING, INSTALLATION, LOCKED, RELATIVE_PLACEMENT } from './location.js';
 import { DEFAULT_MODEL, MODELS } from './models.js';
 
 const params = new URLSearchParams(location.search);
+
+/**
+ * Placement parameters are suppressed when LOCKED, so a deployed experience
+ * can't be relocated from the address bar. Presentation parameters stay live.
+ */
+const placed = (key) => (LOCKED ? null : params.get(key));
 
 const num = (key, fallback) => {
   const value = Number.parseFloat(params.get(key));
@@ -45,7 +51,7 @@ export const config = {
     shape: params.get('path') ?? 'racetrack',
 
     /** 'across', 'along', or a compass bearing in degrees. See location.js. */
-    heading: params.get('heading') ?? FLIGHT_HEADING,
+    heading: placed('heading') ?? FLIGHT_HEADING,
 
     /**
      * Length of the straight leg in metres — the stretch of river it patrols.
@@ -86,12 +92,12 @@ export const config = {
 
   /** Placement — edit location.js, not this. Query params override for testing. */
   anchor: {
-    mode: params.get('mode') ?? DEFAULT_MODE,
-    lat: num('lat', INSTALLATION.lat),
-    lon: num('lon', INSTALLATION.lon),
+    mode: placed('mode') ?? DEFAULT_MODE,
+    lat: Number(placed('lat')) || INSTALLATION.lat,
+    lon: Number(placed('lon')) || INSTALLATION.lon,
     bearing: num('bearing', RELATIVE_PLACEMENT.bearing),
     distance: num('distance', RELATIVE_PLACEMENT.distance),
-    elevation: num('elev', INSTALLATION.elevation),
+    elevation: Number(placed('elev')) || INSTALLATION.elevation,
     /**
      * Past this many metres the model is a speck and walking does nothing
      * perceptible, which reads as "the AR is broken" rather than "you are in
@@ -130,6 +136,14 @@ export const config = {
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
+
+  /**
+   * Where the simulated viewer stands, as a bearing from the anchor. Standing
+   * due south of a run that happens to lie north-south means watching it fly
+   * straight at you; the map picker sets this perpendicular to the run so you
+   * see the whole sweep, the way you would from a riverbank.
+   */
+  viewFrom: num('viewfrom', 180),
 
   /**
    * How much interface to draw over the camera feed.

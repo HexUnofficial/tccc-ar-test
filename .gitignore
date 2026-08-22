@@ -3,3 +3,7 @@ dist/
 .tmp/
 *.local
 .DS_Store
+
+# Source models: large exports, optimised into public/models/ by npm run optimize
+/TcccAirplane.glb
+/*_animation.glb

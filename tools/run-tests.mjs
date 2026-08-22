@@ -32,10 +32,11 @@ const SCENARIOS = [
 const run = (cmd, args, options = {}) =>
   spawn(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32', ...options });
 
-console.log('▸ building…');
-if ((await once(run('npx', ['vite', 'build', '--logLevel', 'warn']), 'exit'))[0] !== 0) {
-  process.exit(1);
-}
+console.log('▸ building… (with the setup tool, so it can be tested)');
+const buildWith = (env) => run('npx', ['vite', 'build', '--logLevel', 'warn'], {
+  env: { ...process.env, ...env },
+});
+if ((await once(buildWith({ INCLUDE_SETUP: '1' }), 'exit'))[0] !== 0) process.exit(1);
 
 console.log(`▸ serving on ${BASE_URL}`);
 const server = run('npx', ['vite', 'preview', '--port', String(PORT)], { stdio: 'ignore' });
@@ -113,12 +114,39 @@ console.log(`\n──── flight circuit ────`);
   if (code !== 0) failed.push('flight circuit');
 }
 
+// The map picker, and the config it hands to the AR page.
+console.log(`\n──── map picker ────`);
+{
+  const child = run('node', ['tools/setup-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('map picker');
+}
+
 server.kill();
+
+// The picker is an authoring tool. Shipping it would put a "move the aircraft
+// anywhere" page on the public site, so a plain build must leave it out.
+console.log('');
+console.log('──── production build ────');
+{
+  const [code] = await once(buildWith({ INCLUDE_SETUP: '' }), 'exit');
+  const { existsSync } = await import('node:fs');
+  if (code !== 0) {
+    failed.push('production build');
+  } else if (existsSync('dist/setup.html')) {
+    console.error('  ✖ dist/setup.html exists - the authoring tool would be deployed');
+    failed.push('production build');
+  } else {
+    console.log('  ✔ setup.html excluded from the production build');
+  }
+}
 
 console.log(`\n${'═'.repeat(50)}`);
 if (failed.length) {
-  console.error(`✖ ${failed.length}/${SCENARIOS.length + 5} scenarios failed:`);
+  console.error(`✖ ${failed.length}/${SCENARIOS.length + 7} scenarios failed:`);
   for (const name of failed) console.error(`   - ${name}`);
   process.exit(1);
 }
-console.log(`✔ all ${SCENARIOS.length + 5} scenarios passed`);
+console.log(`✔ all ${SCENARIOS.length + 7} scenarios passed`);

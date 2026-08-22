@@ -1,0 +1,21 @@
+# Netlify build settings. These override the site's UI configuration — they are
+# here so the deploy is reproducible from the repo rather than from a dashboard.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 8 needs a modern Node; Netlify's default is older.
+  NODE_VERSION = "22"
+  # Playwright is a devDependency used only by the test suite, and its install
+  # step otherwise downloads ~150 MB of browsers into every deploy.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+
+# Some hosts serve unknown extensions as octet-stream. GLTFLoader copes, but
+# being explicit costs nothing and rules out a confusing class of failure.
+[[headers]]
+  for = "/models/*"
+  [headers.values]
+    Content-Type = "model/gltf-binary"
+    Cache-Control = "public, max-age=31536000, immutable"

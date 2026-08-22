@@ -29,6 +29,17 @@ export const INSTALLATION = {
 export const DEFAULT_MODE = 'fixed';
 
 /**
+ * Lock the placement for production.
+ *
+ * Every setting in this project can be overridden from the query string, which
+ * is what makes it tunable in the field — and also means anyone can drag the
+ * aircraft somewhere else by editing the URL. With this true, the parameters
+ * that decide *where* the experience is (lat, lon, mode, heading, elev) are
+ * ignored, and only the harmless presentation ones still work.
+ */
+export const LOCKED = false;
+
+/**
  * Which way the aircraft beats back and forth.
  *
  *   'across'  perpendicular to your line of sight, so it sweeps left and right

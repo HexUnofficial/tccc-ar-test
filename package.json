@@ -22,7 +22,9 @@
   },
   "homepage": "https://github.com/HexUnofficial/tccc-ar-test#readme",
   "dependencies": {
+    "leaflet": "^1.9.4",
     "locar": "^0.2.7",
+    "qrcode": "^1.5.4",
     "three": "^0.185.1"
   },
   "devDependencies": {

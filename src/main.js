@@ -252,8 +252,14 @@ async function startAR() {
   });
 
   if (config.simulate) {
+    // Stand off the anchor on the configured bearing, so the simulated view
+    // matches where a real spectator would be.
     const start = config.anchor.mode === 'fixed' && config.anchor.lat
-      ? destination({ lat: config.anchor.lat, lon: config.anchor.lon }, 180, config.anchor.distance)
+      ? destination(
+          { lat: config.anchor.lat, lon: config.anchor.lon },
+          config.viewFrom,
+          config.anchor.distance,
+        )
       : { lat: 51.05043, lon: 3.72509 };
     simulator = attachSimulator({
       camera, canvas, locar, start,
