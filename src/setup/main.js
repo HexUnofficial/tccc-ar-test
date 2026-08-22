@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css';
 import QRCode from 'qrcode';
 import { createFlightPath } from '../flight.js';
 import { bearingBetween, destination, distanceBetween } from '../geo.js';
-import { INSTALLATION, FLIGHT_HEADING } from '../location.js';
+import { FLIGHT, INSTALLATION, FLIGHT_HEADING } from '../location.js';
 import { DEFAULT_MODEL, MODELS } from '../models.js';
 
 /**
@@ -33,18 +33,29 @@ const startHeading = num(
   'heading',
   Number.isFinite(Number(FLIGHT_HEADING)) ? Number(FLIGHT_HEADING) : 90,
 );
-const startLength = num('length', 250);
+/*
+ * Open on whatever is currently deployed, so the page describes the real
+ * installation rather than a set of defaults nobody chose.
+ *
+ * These used to be hardcoded — 250 m, turn 40, speed 20 — while the anchor and
+ * heading were read from location.js. That mix is worse than either: the map
+ * showed the right stretch of river with the wrong circuit on it, and every
+ * link and QR the page emitted quietly carried the placeholder numbers instead
+ * of the deployed ones. FLIGHT.length may be the string 'fit', which has no
+ * meaning as a distance between two pins, so that falls back to 250.
+ */
+const startLength = num('length', Number.isFinite(Number(FLIGHT.length)) ? Number(FLIGHT.length) : 250);
 const startCentre = { lat: num('lat', INSTALLATION.lat), lon: num('lon', INSTALLATION.lon) };
 
 /** The two ends of the run. Heading, length and anchor are all derived. */
 const state = {
   a: destination(startCentre, (startHeading + 180) % 360, startLength / 2),
   b: destination(startCentre, startHeading, startLength / 2),
-  turnRadius: num('turn', 40),
-  altitude: num('alt', 50),
-  speed: num('speed', 20),
+  turnRadius: num('turn', FLIGHT.turnRadius),
+  altitude: num('alt', FLIGHT.altitude),
+  speed: num('speed', FLIGHT.speed),
   /** Length of the whole assembly — aircraft, tow line and banner — in metres. */
-  size: num('size', MODELS[DEFAULT_MODEL].size),
+  size: num('size', FLIGHT.size ?? MODELS[DEFAULT_MODEL].size),
   /** Not sent to the AR page; only used to predict how big it will look. */
   viewer: num('viewer', 200),
 };
@@ -346,6 +357,32 @@ const copy = (button, source) => button.addEventListener('click', async () => {
 });
 copy(el('copy-url'), 'url');
 copy(el('copy-snippet'), 'snippet');
+
+/*
+ * A QR big enough to be worth printing or putting on a slide.
+ *
+ * The on-screen one is 104px, sized to be scanned off the monitor next to you.
+ * This renders the same link to an offscreen canvas at 2048px and downloads it.
+ * margin: 2 keeps the quiet zone a scanner needs once the image is cropped into
+ * a layout — without it, artwork butting up against the pattern stops it
+ * reading.
+ */
+el('export-qr').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const original = button.textContent;
+  try {
+    const canvas = document.createElement('canvas');
+    await QRCode.toCanvas(canvas, el('url').value, { width: 2048, margin: 2 });
+    const link = document.createElement('a');
+    link.download = 'tccc-ar-qr.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    button.textContent = 'Downloaded';
+  } catch (error) {
+    button.textContent = `Failed: ${error.message}`;
+  }
+  setTimeout(() => { button.textContent = original; }, 1600);
+});
 
 // "Preview here" and "Open for real" are anchors whose hrefs render() keeps in
 // step with the sliders; there is no click handler to attach.

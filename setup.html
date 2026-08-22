@@ -46,7 +46,7 @@
 
     <div class="sliders">
       <label><span>Run length <b id="v-length"></b></span>
-        <input id="length" type="range" min="50" max="600" step="10" value="250"></label>
+        <input id="length" type="range" min="50" max="3000" step="10" value="250"></label>
       <label><span>Turn radius <b id="v-turn"></b></span>
         <input id="turn" type="range" min="10" max="120" step="5" value="40"></label>
       <label><span>Altitude <b id="v-alt"></b></span>
@@ -89,6 +89,13 @@
            phone means the phone itself. Reopen this page using the
            <b>Network:</b> address <code>npm run dev</code> printed, then rescan.</p>
       </div>
+      <div class="row">
+        <button id="export-qr" type="button">Export big QR (PNG)</button>
+      </div>
+      <p class="muted small">
+        The one on screen is only big enough to scan off the monitor. This
+        downloads a roughly 2000px copy of the same link, for print or a slide.
+      </p>
     </section>
 
     <section>
@@ -101,8 +108,10 @@
     </section>
 
     <footer>
-      This page is a development tool. It is excluded from
-      <code>npm run build</code> and never deployed.
+      An authoring tool, but it <em>is</em> built and deployed by default, and it
+      can move the installation. Build with <code>EXCLUDE_SETUP=1</code> to leave
+      it out, or set <code>LOCKED</code> in <code>src/location.js</code> to make
+      the AR page ignore placement set from a URL.
     </footer>
   </aside>
 
