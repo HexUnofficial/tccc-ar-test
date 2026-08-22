@@ -53,7 +53,13 @@ export const config = {
        * FLIGHT.size is the installation's own figure, set by the map picker;
        * it falls back to the per-model default when left null.
        */
-      size: num('size', num('height', FLIGHT.size ?? preset.size)),
+      /*
+       * FLIGHT.size describes the aircraft, so it must not reach the other
+       * models: `FLIGHT.size ?? preset.size` was always taking the former,
+       * which quietly made the witch 400 m tall.
+       */
+      size: num('size', num('height',
+        preset.behaviour === 'flight' ? FLIGHT.size ?? preset.size : preset.size)),
       /** Extra yaw in degrees, to correct a model that doesn't face -Z. */
       yawOffset: num('yaw', 0),
       /** Rotate to face the viewer. Right for a character, wrong in flight. */

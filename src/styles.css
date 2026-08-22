@@ -157,12 +157,27 @@ body { background: transparent; }
 
 .gate-logotype {
   margin: 0;
+  /* Kept as a fallback for when the artwork is swapped back out for text. */
   font-family: "Playball", "Brush Script MT", cursive;
   font-weight: 400;
   font-size: 3.2rem;
   line-height: 1.15;
   letter-spacing: 0.01em;
   text-shadow: 0 3px 10px rgb(0 0 0 / 0.25);
+}
+
+/*
+ * The title is outlined artwork rather than live text. width/height on the
+ * <img> give it an intrinsic ratio so the card does not reflow once the SVG
+ * arrives, and the drop shadow matches the text version it replaces.
+ */
+.gate-logotype img {
+  display: block;
+  width: 100%;
+  max-width: 19rem;
+  height: auto;
+  margin-inline: auto;
+  filter: drop-shadow(0 3px 10px rgb(0 0 0 / 0.35));
 }
 
 .gate-tagline {

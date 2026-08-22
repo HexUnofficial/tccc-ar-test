@@ -13,8 +13,8 @@ export const INSTALLATION = {
   // at all (see config.js `ui`), so it is inert unless you turn the HUD back
   // on with ?debug=1.
   label: 'Set me',
-  lat: 51.5109608,
-  lon: -0.0976536,
+  lat: 51.5104797,
+  lon: -0.0900796,
   /**
    * Metres above the viewer's feet. Leave at 0 for something standing on the
    * ground with you; raise it to put the model on a roof or a plinth.
@@ -56,7 +56,7 @@ export const LOCKED = false;
  * drop two Google Maps pins along the stretch you want and take the bearing
  * between them.
  */
-export const FLIGHT_HEADING = 82.6;
+export const FLIGHT_HEADING = 114.5;
 
 /** Relative-mode placement: how far away, and on what compass bearing. */
 export const RELATIVE_PLACEMENT = {
@@ -89,7 +89,7 @@ export const RELATIVE_PLACEMENT = {
  * the turns are affected — the long straight legs read fine.
  */
 export const FLIGHT = {
-  length: 2650,
+  length: 2475,
   turnRadius: 55,
   altitude: 50,
   speed: 60,

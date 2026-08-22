@@ -207,7 +207,15 @@ if (!pointing.facingPlane.hidden) failures.push('arrow still showing while looki
 // And the distance it reports must be to the aircraft, not to the anchor.
 const labelled = Number.parseFloat(pointing.facingAnchor.label);
 const expected = pointing.planeRange < 1000 ? pointing.planeRange : pointing.planeRange / 1000;
-if (Number.isFinite(labelled) && Math.abs(labelled - expected) > Math.max(2, expected * 0.05)) {
+/*
+ * Tolerance has to scale with airspeed: the label and the range are sampled a
+ * frame or two apart, and at 60 m/s the aircraft moves several metres in that
+ * time. Comparing them to within a fixed couple of metres is not a real
+ * requirement, it is a race.
+ */
+const speed = await page.evaluate(() => window.__ar.flightConfig.speed);
+const tolerance = Math.max(2, expected * 0.05, speed * 0.25);
+if (Number.isFinite(labelled) && Math.abs(labelled - expected) > tolerance) {
   failures.push(`arrow reads "${pointing.facingAnchor.label}" but the aircraft is ${pointing.planeRange.toFixed(0)} m away`);
 }
 
