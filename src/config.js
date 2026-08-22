@@ -182,18 +182,27 @@ export const config = {
    * How long the view takes to catch up to the sensors, in seconds.
    *
    * A time constant, not a fraction: the camera eases towards the latest
-   * reading once per rendered frame, so this is frame-rate independent and
-   * means something concrete — after this long, roughly two thirds of the way
-   * there. It replaced LocAR's per-event factor, which quantised all motion to
-   * sensor arrivals and was the actual source of the jitter while panning.
+   * reading once per rendered frame, so this is frame-rate independent. It
+   * exists because LocAR only writes rotation when a reading lands, which left
+   * the view frozen between them — stepping that read as jitter while panning.
    *
-   * 0.08 s is deliberately small but not zero. It filters compass noise while
-   * standing still, and it leaves the overlay very slightly behind the phone,
-   * which is the right direction to err: the camera feed is itself delayed by
-   * some tens of milliseconds, so a snap-to-sensor overlay runs ahead of the
-   * picture it is drawn over. 0 tracks the sensors exactly.
+   * It has to be small, though, because the same easing lags the phone and the
+   * scene is pinned to compass north: lag makes the whole world drift with the
+   * pan, which looks like the aircraft following you rather than sitting at its
+   * anchor. Measured while panning at 60°/s with readings at 30Hz:
+   *
+   *     tau     world lag   frames frozen
+   *     0.08      4.02°        0%
+   *     0.04      1.81°        0%
+   *     0.02      0.55°        0%
+   *     0         0.00°       44%   <- stepping is back
+   *
+   * 0.02 is the corner: a little over half a degree of lag, which is a couple
+   * of pixels, and still a fresh orientation every frame. Raise it if compass
+   * noise becomes visible while holding still — that is the other end of the
+   * same trade — and ?smoothrot=0 shows you the stepping it prevents.
    */
-  orientationSmoothing: num('smoothrot', 0.08),
+  orientationSmoothing: num('smoothrot', 0.02),
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
