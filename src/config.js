@@ -202,9 +202,14 @@ export const config = {
    * denied location permission or a lost fix now says nothing at all, so if the
    * aircraft fails to appear on site, reach for `?debug=1` to find out why.
    *
-   * `?debug=1` is kept as a shorthand for `?ui=debug`.
+   * `?debug=1` is kept as a shorthand for `?ui=debug`, but an explicit `?ui=`
+   * outranks it. That ordering matters for links already in the wild: every URL
+   * and QR the picker emitted before this carried `debug=1`, so a printed sheet
+   * or a scanned code opens with the instrument panel over the camera feed and
+   * no way to say otherwise. With `ui` winning, `&ui=none` cleans up any such
+   * link without having to edit `debug=1` back out of it.
    */
-  ui: flag('debug', false) ? 'debug' : (params.get('ui') ?? 'none'),
+  ui: params.get('ui') ?? (flag('debug', false) ? 'debug' : 'none'),
 
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),
