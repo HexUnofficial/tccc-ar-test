@@ -17,19 +17,23 @@
  */
 export const MODELS = {
   /**
-   * The TCCC banner-towing aircraft, shipped exactly as exported: 8 MB, 289k
-   * triangles, 16 WebP textures.
+   * The TCCC banner-towing aircraft: Draco-compressed geometry, 289k triangles
+   * down to 83k, textures re-encoded from WebP to PNG.
    *
-   * Deliberately NOT run through tools/optimize-geometry.mjs. That pass takes it
-   * to 1.5 MB, but its weld/simplify stage drops TEXCOORD_0 from 26 of the 221
-   * primitives, so those parts render untextured. Until that is fixed, the
-   * download cost is the lesser problem.
+   * The glTF-Transform export's 16 textures were WebP behind a *required*
+   * EXT_texture_webp — fine on desktop Chromium, but the actual field test on
+   * an iPhone rendered the whole aircraft flat black, textures gone. WebP
+   * decoding through GLTFLoader's ImageBitmapLoader path is the prime suspect
+   * (see tools/optimize-geometry.mjs and the model:tccc script), and it isn't
+   * worth chasing further: PNG has no decoder to fail. Costs ~2.5x the
+   * transferred bytes; for a one-time load before a client demo, that's the
+   * right side to be wrong on.
    *
    * The banner trails behind the aircraft along its +Z, which is why the nose
    * needs turning through 180 degrees to fly down -Z.
    */
   tccc: {
-    url: 'models/tccc-airplane.glb?v=2e37b3a9',
+    url: 'models/tccc-airplane.glb?v=ff884cc7',
     scaleBy: 'size',
     /*
      * Length of the whole assembly — aircraft, tow line and banner. Realistic

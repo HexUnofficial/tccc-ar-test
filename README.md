@@ -278,28 +278,32 @@ npm run model:tccc # FBX -> GLB -> welded, simplified to 25%, Draco
 ```
 
 The delivered model comes from `source-models/TcccAirplane-optimized.glb`, a
-glTF-Transform export carrying its textures as 16 WebP images. The FBX route is
+glTF-Transform export carrying its textures as 16 images. The FBX route is
 kept for when only an FBX is available, but FBX carries no textures unless
 exported with "Embed Media" on: ours has 156 texture slots, 77 file paths and
 **zero `Content` nodes**, so it converts and flies but renders untextured.
 
-It ships at **7.88 MB, uncompressed geometry**. `tools/optimize-geometry.mjs`
-takes it to 1.5 MB, which is a large win, but it is not currently applied — see
-below.
+That export's textures arrived as WebP behind a *required* `EXT_texture_webp`,
+which is fine on desktop Chromium but rendered the whole aircraft flat black on
+an iPhone in the field — GLTFLoader's `ImageBitmapLoader` path is the prime
+suspect for why the decode silently fails there. `npm run model:tccc`
+re-encodes them to PNG first (`gltf-transform png ... --formats webp`), which
+has no decoder to fail on any platform, before the geometry pass below. That
+costs size — PNG doesn't compress photographic textures anywhere near as well —
+but a one-time load before a client demo is the wrong place to economise.
 
-That export arrived with **223 animation clips**, one per object, all 41.7
-seconds long: a Blender artifact where one action was applied to everything.
-Only the propeller moves, so `npm run model:tccc` drops channels whose values
-never change — 668 constant channels and 222 empty clips, leaving
-`Propeller|PropellerAction.001`. That is 669 animation tracks a frame down to
-one, which matters on a phone.
+That export also arrived with **223 animation clips**, one per object, all
+41.7 seconds long: a Blender artifact where one action was applied to
+everything. Only the propeller moves, so the geometry pass drops channels
+whose values never change — 668 constant channels and 222 empty clips,
+leaving `Propeller|PropellerAction.001`. That is 669 animation tracks a frame
+down to one, which matters on a phone.
 
 **A trap worth recording.** `prune()` strips `TEXCOORD_0` from the 26
 primitives whose materials have no texture. That is correct and harmless, but
 under inspection it looks exactly like "the compression ate the textures" —
 221 primitives with UVs becomes 195. It is not: the same 195 meshes render
-textured either way. `tools/prune-animations.mjs` avoids `prune()` anyway, so
-the numbers stay legible.
+textured either way.
 
 ### Shrinking a model
 
@@ -308,8 +312,9 @@ Two passes, deliberately separate processes:
 - **[tools/optimize-model.mjs](tools/optimize-model.mjs)** — textures: resize to
   1024px, re-encode as WebP. The witch went 8.2 MB → 1.2 MB.
 - **[tools/optimize-geometry.mjs](tools/optimize-geometry.mjs)** — geometry:
-  drop constant animation channels, weld, simplify to 25%, Draco. The TCCC
-  aircraft went 8.0 MB → 1.5 MB and 289k triangles → 83k, textures intact.
+  drop constant animation channels, weld, simplify to 25%, Draco. Run on the
+  PNG-re-encoded export, the TCCC aircraft goes 11 MB → 4.0 MB and 289k
+  triangles → 83k, textures intact.
 
 They cannot share a process: importing `@gltf-transform/functions` leaves sharp
 unable to encode, out of libvips. Tune with `MAX_TEXTURE=512 WEBP_QUALITY=75`
