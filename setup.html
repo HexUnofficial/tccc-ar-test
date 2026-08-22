@@ -22,12 +22,17 @@
       <span>Jump to coordinates</span>
       <input id="jump" type="text" placeholder="51.5075, -0.0877" autocomplete="off">
     </label>
+    <div class="row">
+      <button id="locate" type="button">Use my current location</button>
+    </div>
+    <p class="muted small" id="locate-status"></p>
 
     <div class="readout">
       <dl>
         <dt>Anchor</dt><dd id="r-anchor">—</dd>
         <dt>Heading</dt><dd id="r-heading">—</dd>
         <dt>Run length</dt><dd id="r-length">—</dd>
+        <dt>Wingspan</dt><dd id="r-span">—</dd>
         <dt>Legs apart</dt><dd id="r-apart">—</dd>
         <dt>Lap</dt><dd id="r-lap">—</dd>
       </dl>
@@ -42,7 +47,13 @@
         <input id="alt" type="range" min="10" max="200" step="5" value="50"></label>
       <label><span>Speed <b id="v-speed"></b></span>
         <input id="speed" type="range" min="5" max="60" step="1" value="20"></label>
+      <label><span>Aircraft size <b id="v-size"></b></span>
+        <input id="size" type="range" min="15" max="400" step="5" value="60"></label>
+      <label><span>Watched from <b id="v-viewer"></b></span>
+        <input id="viewer" type="range" min="30" max="800" step="10" value="200"></label>
     </div>
+
+    <p class="muted small" id="apparent"></p>
 
     <section>
       <h2>Test it now</h2>

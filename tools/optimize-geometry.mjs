@@ -40,6 +40,47 @@ const count = () => doc.getRoot().listMeshes()
 
 const before = count();
 
+/*
+ * Drop animation channels that never actually move.
+ *
+ * The Blender export applied one action to all 223 objects, so the file carries
+ * 223 clips of 41.7 seconds where only the propeller turns. The rest are
+ * constant keyframes: pure weight, and they force the mixer to evaluate
+ * hundreds of no-op tracks every frame.
+ */
+function isConstant(accessor) {
+  const array = accessor.getArray();
+  const stride = accessor.getElementSize();
+  for (let component = 0; component < stride; component += 1) {
+    const first = array[component];
+    for (let i = component; i < array.length; i += stride) {
+      if (Math.abs(array[i] - first) > 1e-6) return false;
+    }
+  }
+  return true;
+}
+
+let droppedChannels = 0;
+let droppedClips = 0;
+for (const animation of doc.getRoot().listAnimations()) {
+  for (const channel of animation.listChannels()) {
+    const sampler = channel.getSampler();
+    const output = sampler?.getOutput();
+    if (output && isConstant(output)) {
+      channel.dispose();
+      droppedChannels += 1;
+    }
+  }
+  if (animation.listChannels().length === 0) {
+    animation.dispose();
+    droppedClips += 1;
+  }
+}
+if (droppedChannels) {
+  console.log(`  animations  dropped ${droppedChannels} constant channels, `
+    + `${droppedClips} empty clips (${doc.getRoot().listAnimations().length} remain)`);
+}
+
 await doc.transform(
   dedup(),
   // weld() first: simplify can only collapse edges across shared vertices, and

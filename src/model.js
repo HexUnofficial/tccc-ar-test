@@ -112,13 +112,22 @@ export async function loadModel(onProgress) {
    */
   const localBounds = new THREE.Box3().setFromObject(motion);
 
+  /*
+   * Play every clip, not just the first. The aircraft's propeller lives in one
+   * clip among what was originally 223 (one per object, all but one static —
+   * see tools/optimize-geometry.mjs), and which one survives pruning is not
+   * something to hard-code an index for.
+   */
   let mixer = null;
   let clipName = null;
   if (gltf.animations.length > 0) {
     mixer = new THREE.AnimationMixer(model);
-    const clip = gltf.animations[0];
-    mixer.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity).play();
-    clipName = clip.name;
+    for (const clip of gltf.animations) {
+      mixer.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity).play();
+    }
+    clipName = gltf.animations.length === 1
+      ? gltf.animations[0].name
+      : `${gltf.animations.length} clips`;
   }
 
   return { root, motion, yaw, mixer, clipName, preset, localBounds };

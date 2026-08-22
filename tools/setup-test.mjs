@@ -121,6 +121,7 @@ await ar.waitForFunction(
 );
 
 const applied = await ar.evaluate(() => {
+  window.__sizeApplied = window.__ar.model.preset.size;
   const { THREE, flightPath, model } = window.__ar;
   // Recover the flown heading from the path itself.
   const a = flightPath.positionAt(0);
@@ -131,6 +132,7 @@ const applied = await ar.evaluate(() => {
     anchor: document.getElementById('f-anchor').textContent,
     heading: ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360,
     altitude: model.motion.position.y,
+    size: window.__sizeApplied,
   };
 });
 
@@ -143,6 +145,12 @@ if (!Number.isFinite(gotLat) || !Number.isFinite(gotLon)) {
   failures.push(`AR page never reported an anchor (read "${applied.anchor}")`);
 } else if (Math.abs(gotLat - SITE.lat) > 1e-5 || Math.abs(gotLon - SITE.lon) > 1e-5) {
   failures.push(`AR anchored at ${applied.anchor}, expected ${SITE.lat}, ${SITE.lon}`);
+}
+const emittedSize = Number(new URL(emitted.url).searchParams.get('size'));
+if (Number.isFinite(emittedSize) && Math.abs(applied.size - emittedSize) > 0.01) {
+  failures.push(`picker asked for size ${emittedSize} m, AR page used ${applied.size} m`);
+} else {
+  console.log(`  aircraft size ${applied.size} m carried through`);
 }
 if (Math.abs(applied.heading - SITE.heading) > 1) {
   failures.push(`AR flying ${applied.heading.toFixed(1)}°, expected ${SITE.heading}°`);

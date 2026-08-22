@@ -108,6 +108,16 @@ sampled from the same `createFlightPath` the AR page uses, not an approximation
 embankment. Sliders for leg length, turn radius, altitude and speed update it
 live.
 
+Sliders set the run length, turn radius, altitude, speed and **aircraft size**,
+and a *watched from* slider predicts how big it will be on screen — including
+whether the banner lettering will be legible at that distance. That question is
+much cheaper to answer here than at the riverbank.
+
+**Use my current location** centres the run on where you are, so you needn't
+look your own coordinates up. On a laptop that is network positioning and can be
+a kilometre out, so treat it as a way to get the map roughly right, not to set a
+final anchor; the readout shows the accuracy.
+
 Then, without copying anything:
 
 - **Preview here** opens the AR page on this machine with simulated GPS, standing
@@ -152,7 +162,7 @@ address bar instead of redeploying.
 | `bearing` | `0` | Relative mode: degrees from true north |
 | `elev` | `0` | Metres above your feet |
 | `model` | `airplane` | `airplane` or `witch` |
-| `size` | per model | Real-world size in metres (longest axis for the aircraft, height for the witch) |
+| `size` | `60` | Overall length in metres — aircraft, tow line and banner together |
 | `path` | `racetrack` | Flight circuit: `racetrack`, `circle`, `eight` |
 | `heading` | from `location.js` | `across`, `along`, or a compass bearing for the line |
 | `length` | `250` | Straight leg, in metres, or `fit` to size it to the frame |
@@ -265,15 +275,18 @@ npm run dev        # the converter needs a browser: three's FBXLoader wants a DO
 npm run model:tccc # FBX -> GLB -> welded, simplified to 25%, Draco
 ```
 
-**Its textures are missing.** The FBX has 156 texture slots and 77 file paths
-but **zero embedded `Content` nodes**, so it was exported with "Embed Media"
-off and the 27 PNGs it wants were never copied. It converts, flies and is
-correctly shaped, but renders untextured. Either re-export with Embed Media on,
-or drop the PNGs into `source-models/` and re-run. See
-[source-models/README.md](source-models/README.md).
+The delivered model actually comes from `source-models/TcccAirplane-optimized.glb`
+(a glTF-Transform export that *does* carry its textures, as 16 WebP images) —
+`npm run model:tccc` compresses that. The FBX route is kept for when only an FBX
+is available, but note that FBX carries no textures unless exported with "Embed
+Media" on: ours has 156 texture slots, 77 file paths and **zero `Content`
+nodes**, so it converts and flies but renders untextured.
 
-It also has **no animation clip of any kind** — no propeller, no bob — so the
-flight path is its only motion.
+That export also arrived with **223 animation clips**, one per object, all 41.7
+seconds long — a Blender artifact where one action was applied to everything.
+Only the propeller actually moves, so the optimiser drops channels whose values
+never change: 668 constant channels and 222 empty clips removed, leaving
+`Propeller|PropellerAction.001`.
 
 ### Shrinking a model
 
@@ -282,8 +295,8 @@ Two passes, deliberately separate processes:
 - **[tools/optimize-model.mjs](tools/optimize-model.mjs)** — textures: resize to
   1024px, re-encode as WebP. The witch went 8.2 MB → 1.2 MB.
 - **[tools/optimize-geometry.mjs](tools/optimize-geometry.mjs)** — geometry:
-  weld, simplify to 25%, Draco. The TCCC aircraft went 27.2 MB → 0.6 MB and
-  289k triangles → 83k.
+  drop constant animation channels, weld, simplify to 25%, Draco. The TCCC
+  aircraft went 8.0 MB → 1.5 MB and 289k triangles → 83k, textures intact.
 
 They cannot share a process: importing `@gltf-transform/functions` leaves sharp
 unable to encode, out of libvips. Tune with `MAX_TEXTURE=512 WEBP_QUALITY=75`

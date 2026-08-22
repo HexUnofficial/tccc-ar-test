@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { createFlightPath } from '../flight.js';
 import { bearingBetween, destination, distanceBetween } from '../geo.js';
 import { INSTALLATION, FLIGHT_HEADING } from '../location.js';
+import { DEFAULT_MODEL, MODELS } from '../models.js';
 
 /**
  * Authoring tool for placing the flight circuit on a map.
@@ -42,7 +43,23 @@ const state = {
   turnRadius: num('turn', 40),
   altitude: num('alt', 50),
   speed: num('speed', 20),
+  /** Length of the whole assembly — aircraft, tow line and banner — in metres. */
+  size: num('size', MODELS[DEFAULT_MODEL].size),
+  /** Not sent to the AR page; only used to predict how big it will look. */
+  viewer: num('viewer', 200),
 };
+
+/**
+ * Roughly how tall the aircraft will be on a phone screen.
+ *
+ * Assumes about 60 degrees of vertical field of view over 850 pixels, which is
+ * typical for a portrait phone. Approximate on purpose — the point is to answer
+ * "is it going to be a speck?" before walking to the river, not to be exact.
+ */
+function apparentPixels(metres, distance) {
+  const angle = 2 * Math.atan(metres / 2 / Math.max(distance, 1)) * (180 / Math.PI);
+  return { angle, pixels: (angle / 60) * 850 };
+}
 
 const runLength = () => distanceBetween(state.a, state.b);
 const runHeading = () => bearingBetween(state.a, state.b);
@@ -122,6 +139,8 @@ function render() {
   el('r-heading').textContent = `${heading.toFixed(1)}°`;
   el('r-length').textContent = `${length.toFixed(0)} m`;
   el('r-apart').textContent = `${(state.turnRadius * 2).toFixed(0)} m`;
+  // The bundled aircraft is about a third wingspan to overall length.
+  el('r-span').textContent = `${(state.size * 0.36).toFixed(0)} m`;
   el('r-lap').textContent = `${perimeter.toFixed(0)} m · ${lapTime.toFixed(0)}s`;
 
   el('length').value = String(Math.round(length));
@@ -129,6 +148,19 @@ function render() {
   el('v-turn').textContent = `${state.turnRadius} m`;
   el('v-alt').textContent = `${state.altitude} m`;
   el('v-speed').textContent = `${state.speed} m/s`;
+  el('v-size').textContent = `${state.size} m`;
+  el('v-viewer').textContent = `${state.viewer} m`;
+
+  const whole = apparentPixels(state.size, state.viewer);
+  // The banner is roughly a fifth of the assembly's length in height, and it is
+  // the part that has to be legible.
+  const banner = apparentPixels(state.size * 0.2, state.viewer);
+  el('apparent').innerHTML = `From ${state.viewer} m the aircraft spans about `
+    + `<b>${whole.pixels.toFixed(0)} px</b> (${whole.angle.toFixed(1)}°), and the banner `
+    + `stands about <b>${banner.pixels.toFixed(0)} px</b> tall. `
+    + (banner.pixels < 20
+      ? 'Lettering will not be readable at that size.'
+      : 'Large lettering should read.');
 
   const query = new URLSearchParams({
     mode: 'fixed',
@@ -139,6 +171,7 @@ function render() {
     turn: String(state.turnRadius),
     alt: String(state.altitude),
     speed: String(state.speed),
+    size: String(state.size),
     debug: '1',
   });
   /*
@@ -184,9 +217,10 @@ function render() {
     "export const DEFAULT_MODE = 'fixed';",
     `export const FLIGHT_HEADING = ${heading.toFixed(1)};`,
     '',
-    '// flight defaults in src/config.js, or leave these as URL overrides:',
+    '// flight defaults in src/config.js, and size in src/models.js —',
+    '// or leave these as URL overrides:',
     `//   length ${length.toFixed(0)}, turn ${state.turnRadius}, `
-      + `alt ${state.altitude}, speed ${state.speed}`,
+      + `alt ${state.altitude}, speed ${state.speed}, size ${state.size}`,
   ].join('\n');
 }
 
@@ -211,7 +245,8 @@ el('length').addEventListener('input', (event) => {
   render();
 });
 
-for (const [id, key] of [['turn', 'turnRadius'], ['alt', 'altitude'], ['speed', 'speed']]) {
+for (const [id, key] of [['turn', 'turnRadius'], ['alt', 'altitude'], ['speed', 'speed'],
+  ['size', 'size'], ['viewer', 'viewer']]) {
   const input = el(id);
   input.value = String(state[key]);
   input.addEventListener('input', () => {
@@ -224,16 +259,48 @@ for (const [id, key] of [['turn', 'turnRadius'], ['alt', 'altitude'], ['speed', 
 el('jump').addEventListener('change', (event) => {
   const match = event.target.value.match(/(-?[0-9]+(?:[.][0-9]+)?)\s*,\s*(-?[0-9]+(?:[.][0-9]+)?)/);
   if (!match) return;
-  const lat = Number(match[1]);
-  const lon = Number(match[2]);
+  centreOn(Number(match[1]), Number(match[2]), 15);
+});
+
+/** Recentre the run on a point, keeping its length and bearing. */
+function centreOn(lat, lon, zoom) {
   const heading = runHeading();
   const half = runLength() / 2;
   state.a = destination({ lat, lon }, (heading + 180) % 360, half);
   state.b = destination({ lat, lon }, heading, half);
   startPin.setLatLng([state.a.lat, state.a.lon]);
   endPin.setLatLng([state.b.lat, state.b.lon]);
-  map.setView([lat, lon], Math.max(map.getZoom(), 15));
+  map.setView([lat, lon], Math.max(map.getZoom(), zoom));
   render();
+}
+
+/*
+ * Saves looking your own coordinates up. Worth the warning though: on a laptop
+ * this is derived from the network and can be a kilometre out, so it is a way
+ * to get the map roughly to the right place, not to set a final anchor.
+ */
+el('locate').addEventListener('click', () => {
+  const status = el('locate-status');
+  if (!navigator.geolocation) {
+    status.textContent = 'This browser has no geolocation.';
+    return;
+  }
+  status.textContent = 'Locating…';
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      centreOn(coords.latitude, coords.longitude, 16);
+      const accuracy = coords.accuracy;
+      status.textContent = `Centred on ${coords.latitude.toFixed(5)}, `
+        + `${coords.longitude.toFixed(5)} (±${accuracy.toFixed(0)} m)`
+        + (accuracy > 100 ? ' — that is network positioning, so drag the pins to the real spot.' : '');
+    },
+    (error) => {
+      status.textContent = error.code === error.PERMISSION_DENIED
+        ? 'Location permission denied.'
+        : `Could not get a location: ${error.message}`;
+    },
+    { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
+  );
 });
 
 const copy = (button, source) => button.addEventListener('click', async () => {
