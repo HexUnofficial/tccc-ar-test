@@ -96,6 +96,42 @@ async function open(query) {
   await ctx.close();
 }
 
+/*
+ * --- rotation smoothing gets out of the way while you pan ---
+ *
+ * A fixed smoothing factor cannot win: enough of it to filter compass noise
+ * while you stand still is enough to lag visibly while you turn, and because
+ * the scene is pinned to compass north that lag reads as the aircraft sliding
+ * about as though it were following you. So the factor is scaled by how fast
+ * the view is turning, and it is the scaling that has to keep working.
+ */
+{
+  const { ctx, page } = await open('?sim=0&mode=relative&distance=20&bearing=0');
+  const aim = (alpha) => page.evaluate((a) => {
+    const name = window.__ar.app.deviceOrientationControls.orientationChangeEventName;
+    const event = new Event(name);
+    Object.defineProperties(event, {
+      alpha: { value: a }, beta: { value: 90 }, gamma: { value: 0 }, absolute: { value: true },
+    });
+    window.dispatchEvent(event);
+  }, alpha);
+  const factor = () => page.evaluate(() => window.__ar.app.deviceOrientationControls.smoothingFactor);
+
+  for (let i = 0; i < 60; i += 1) { await aim(90); await page.waitForTimeout(16); }
+  const still = await factor();
+
+  for (let i = 0; i < 60; i += 1) { await aim(90 + i * 3); await page.waitForTimeout(16); }
+  const panning = await factor();
+
+  for (let i = 0; i < 90; i += 1) { await aim(270); await page.waitForTimeout(16); }
+  const settled = await factor();
+
+  check('holding still filters hard', still > 0.3, `factor ${still.toFixed(3)}`);
+  check('panning releases the filter', panning < 0.1, `factor ${panning.toFixed(3)}`);
+  check('filtering returns once at rest', settled > 0.3, `factor ${settled.toFixed(3)}`);
+  await ctx.close();
+}
+
 await browser.close();
 if (failures.length) {
   console.error('\n✖ FAILED');

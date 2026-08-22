@@ -296,11 +296,51 @@ async function startAR() {
   const worldBounds = new THREE.Box3();
   let smoothedFps = 60;
 
+  /*
+   * Rotation smoothing, but only while you are holding still.
+   *
+   * LocAR eases the camera towards each sensor reading —
+   * `quaternion.slerp(target, 1 - smoothingFactor)` — so a higher factor filters
+   * more compass noise and also lags further behind the phone. At a fixed 0.4
+   * that lag is the dominant artefact: the world is pinned to compass north, so
+   * the camera arriving late reads as the aircraft sliding around and settling,
+   * as though it were chasing you rather than sitting still.
+   *
+   * The two problems never happen at once, so they do not need one setting.
+   * Standing still, the only thing moving is noise and heavy filtering costs
+   * nothing. Panning, the noise is swamped by real movement and lag is all you
+   * can see. So the factor is scaled by how fast the view is actually turning:
+   * full smoothing below 3°/s, none above 45°/s.
+   */
+  const STILL = THREE.MathUtils.degToRad(3);
+  const PANNING = THREE.MathUtils.degToRad(45);
+  const previousAim = new THREE.Quaternion().copy(camera.quaternion);
+  let spin = 0;
+
+  function adaptOrientationSmoothing(dt) {
+    const controls = app.deviceOrientationControls;
+    if (!controls || dt <= 0) return;
+
+    // Measured off the camera, which is what the viewer is actually looking
+    // through — so the feedback settles rather than oscillating.
+    const turned = previousAim.angleTo(camera.quaternion) / dt;
+    previousAim.copy(camera.quaternion);
+    // Lightly filtered, or a single noisy frame would drop the smoothing that
+    // exists to suppress exactly that noise.
+    spin += (turned - spin) * Math.min(1, dt * 12);
+
+    const panning = THREE.MathUtils.clamp((spin - STILL) / (PANNING - STILL), 0, 1);
+    controls.smoothingFactor = config.orientationSmoothing * (1 - panning);
+  }
+
   renderer.setAnimationLoop(() => {
     const delta = Math.min(clock.getDelta(), 0.1);
 
     if (config.simulate) simulator?.update(delta);
-    else app.deviceOrientationControls?.update();
+    else {
+      app.deviceOrientationControls?.update();
+      adaptOrientationSmoothing(delta);
+    }
 
     if (tracking) {
       const remaining = followed.distanceTo(gpsTarget);
