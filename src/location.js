@@ -8,13 +8,13 @@
  */
 export const INSTALLATION = {
   // Set from the map picker: on the Thames, with the run following the river
-  // east on a bearing of 95.8°. `label` only ever appeared in the HUD's "you
+  // east on a bearing of 82.6°. `label` only ever appeared in the HUD's "you
   // are N m from X" warning, and the default UI no longer shows that warning
   // at all (see config.js `ui`), so it is inert unless you turn the HUD back
   // on with ?debug=1.
   label: 'Set me',
-  lat: 51.5108394,
-  lon: -0.0946055,
+  lat: 51.5109608,
+  lon: -0.0976536,
   /**
    * Metres above the viewer's feet. Leave at 0 for something standing on the
    * ground with you; raise it to put the model on a roof or a plinth.
@@ -56,7 +56,7 @@ export const LOCKED = false;
  * drop two Google Maps pins along the stretch you want and take the bearing
  * between them.
  */
-export const FLIGHT_HEADING = 95.8;
+export const FLIGHT_HEADING = 82.6;
 
 /** Relative-mode placement: how far away, and on what compass bearing. */
 export const RELATIVE_PLACEMENT = {
@@ -81,17 +81,16 @@ export const RELATIVE_PLACEMENT = {
 /*
  * Set from the map picker, as shown on screen.
  *
- * turnRadius is deliberately 20 m against advice, so that it is not mistaken
- * for an oversight later: at 60 m/s a 20 m turn needs an 87 degree bank, which
- * the 45 degree clamp in config.js cuts to a hard snap lasting about a second.
- * It also puts the two legs 40 m apart while the assembly is 400 m long, so
- * the banner is still outbound while the nose is already heading back and the
- * model passes through itself at each end. Widening this to ~367 m — the
- * radius a 60 m/s aircraft actually holds at 45 degrees — fixes both.
+ * turnRadius 55 m is easier on the eye than the 20 m it was, but still tight
+ * for this aircraft: at 60 m/s a real 45 degree bank wants about 367 m, so the
+ * bank still clamps and the turn is quick. It also leaves the two legs 110 m
+ * apart while the assembly is 400 m long, so the banner is still outbound as
+ * the nose comes back and the model passes through itself at each end. Only
+ * the turns are affected — the long straight legs read fine.
  */
 export const FLIGHT = {
-  length: 2027,
-  turnRadius: 20,
+  length: 2650,
+  turnRadius: 55,
   altitude: 50,
   speed: 60,
   size: 400,
