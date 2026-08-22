@@ -176,6 +176,8 @@ address bar instead of redeploying.
 | `faceuser` | `1` | `0` to stop it turning to face you |
 | `minacc` | `100` | Ignore GPS fixes worse than this many metres |
 | `mindist` | `1` | Metres you must move before the scene re-projects |
+| `avg` | `3` | Fixes averaged together to suppress GPS wander |
+| `smoothrot` | `0.4` | Rotation smoothing, 0–1. Higher is steadier but lags |
 | `smooth` | `1.2` | GPS intervals spent catching up to each fix. `0` snaps instantly |
 | `farwarn` | `200` | Metres from the anchor beyond which the HUD warns you |
 | `sim` | `0` | `1` for desktop simulation |
@@ -275,18 +277,29 @@ npm run dev        # the converter needs a browser: three's FBXLoader wants a DO
 npm run model:tccc # FBX -> GLB -> welded, simplified to 25%, Draco
 ```
 
-The delivered model actually comes from `source-models/TcccAirplane-optimized.glb`
-(a glTF-Transform export that *does* carry its textures, as 16 WebP images) —
-`npm run model:tccc` compresses that. The FBX route is kept for when only an FBX
-is available, but note that FBX carries no textures unless exported with "Embed
-Media" on: ours has 156 texture slots, 77 file paths and **zero `Content`
-nodes**, so it converts and flies but renders untextured.
+The delivered model comes from `source-models/TcccAirplane-optimized.glb`, a
+glTF-Transform export carrying its textures as 16 WebP images. The FBX route is
+kept for when only an FBX is available, but FBX carries no textures unless
+exported with "Embed Media" on: ours has 156 texture slots, 77 file paths and
+**zero `Content` nodes**, so it converts and flies but renders untextured.
 
-That export also arrived with **223 animation clips**, one per object, all 41.7
-seconds long — a Blender artifact where one action was applied to everything.
-Only the propeller actually moves, so the optimiser drops channels whose values
-never change: 668 constant channels and 222 empty clips removed, leaving
-`Propeller|PropellerAction.001`.
+It ships at **7.88 MB, uncompressed geometry**. `tools/optimize-geometry.mjs`
+takes it to 1.5 MB, which is a large win, but it is not currently applied — see
+below.
+
+That export arrived with **223 animation clips**, one per object, all 41.7
+seconds long: a Blender artifact where one action was applied to everything.
+Only the propeller moves, so `npm run model:tccc` drops channels whose values
+never change — 668 constant channels and 222 empty clips, leaving
+`Propeller|PropellerAction.001`. That is 669 animation tracks a frame down to
+one, which matters on a phone.
+
+**A trap worth recording.** `prune()` strips `TEXCOORD_0` from the 26
+primitives whose materials have no texture. That is correct and harmless, but
+under inspection it looks exactly like "the compression ate the textures" —
+221 primitives with UVs becomes 195. It is not: the same 195 meshes render
+textured either way. `tools/prune-animations.mjs` avoids `prune()` anyway, so
+the numbers stay legible.
 
 ### Shrinking a model
 
@@ -335,6 +348,13 @@ something the static placements can't:
   properties, and only this test measures the second one.
 - **`tools/banner-test.mjs`** checks the status banner reflects actual state and
   recovers from a GPS dropout, rather than stranding a stale error on screen.
+- **`tools/drift-test.mjs`** feeds realistic GPS noise to a *stationary* viewer
+  and asserts the scene holds reasonably still, then feeds a real 60 m walk and
+  asserts it still follows. Its threshold is the theoretical one — averaging n
+  fixes cuts random error by root n, so 6 m of wander through a 3-fix window
+  should land near 3.5 m. Content sliding around while you stand still is
+  indistinguishable from the AR being broken, and no amount of correct placement
+  makes up for it.
 - **`tools/setup-test.mjs`** drives the map picker, takes the URL it emits,
   opens it, and checks the aircraft really is anchored and aimed where the map
   said. Checking the picker's own readout would prove nothing about the handoff.
@@ -469,9 +489,21 @@ counts.
 ## Known constraints
 
 - **Accuracy is bounded by consumer GPS**, roughly ±5–20 m outdoors. Content
-  will drift by metres as fixes update. The follow camera turns that drift into
-  gradual motion rather than visible pops, but it can't invent precision that
-  isn't there — and it trades about 0.8 m of lag for the smoothness. Don't design anything that requires the
+  will drift by metres as fixes update. Two things soften it: positions are
+  averaged over the last few fixes, and the camera eases between them rather
+  than snapping. Neither invents precision that isn't there.
+
+  A deadband was tried first — ignore fixes that move less than the reported
+  accuracy — and it was wrong. At walking pace a fix moves about 1.4 m per
+  second, well inside any threshold big enough to suppress noise, so it
+  swallowed real walking and brought the lurching back. A filter cannot tell
+  slow movement from noise by magnitude alone; averaging sidesteps the question
+  because random error cancels and steady movement does not.
+
+  What averaging cannot do is beat root n. Cutting the wander further means a
+  longer window means more lag. If you need content pinned to the centimetre,
+  that is a different technology — visual positioning or plane tracking — not
+  more filtering. Don't design anything that requires the
   model to sit precisely on a specific paving slab — for that you need marker
   or image tracking, or a VPS product like Niantic's.
 - **iOS needs a tap and an explicit grant** for motion sensors. That's what the

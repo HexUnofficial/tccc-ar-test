@@ -126,6 +126,17 @@ console.log(`\n──── map picker ────`);
 
 server.kill();
 
+// Does the scene stay put when the viewer does?
+console.log('');
+console.log('──── holding station ────');
+{
+  const child = run('node', ['tools/drift-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('holding station');
+}
+
 // The picker ships with the site now, but must stay opt-out-able: if the
 // placement is ever locked down, a build has to be able to drop it entirely.
 console.log('');
@@ -155,8 +166,8 @@ console.log('──── build variants ────');
 
 console.log(`\n${'═'.repeat(50)}`);
 if (failed.length) {
-  console.error(`✖ ${failed.length}/${SCENARIOS.length + 7} scenarios failed:`);
+  console.error(`✖ ${failed.length}/${SCENARIOS.length + 8} scenarios failed:`);
   for (const name of failed) console.error(`   - ${name}`);
   process.exit(1);
 }
-console.log(`✔ all ${SCENARIOS.length + 7} scenarios passed`);
+console.log(`✔ all ${SCENARIOS.length + 8} scenarios passed`);

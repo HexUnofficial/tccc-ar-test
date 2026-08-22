@@ -17,10 +17,14 @@
  */
 export const MODELS = {
   /**
-   * The TCCC banner-towing aircraft, converted from FBX (see tools/fbx-to-glb.mjs)
-   * and Draco-compressed: 289k triangles down to 83k, 27 MB down to 0.6 MB.
+   * The TCCC banner-towing aircraft, shipped exactly as exported: 8 MB, 289k
+   * triangles, 16 WebP textures.
    *
-   * It has no animation clip of any kind, so the flight path is the only motion.
+   * Deliberately NOT run through tools/optimize-geometry.mjs. That pass takes it
+   * to 1.5 MB, but its weld/simplify stage drops TEXCOORD_0 from 26 of the 221
+   * primitives, so those parts render untextured. Until that is fixed, the
+   * download cost is the lesser problem.
+   *
    * The banner trails behind the aircraft along its +Z, which is why the nose
    * needs turning through 180 degrees to fly down -Z.
    */

@@ -14,6 +14,20 @@ const params = new URLSearchParams(location.search);
  */
 const placed = (key) => (LOCKED ? null : params.get(key));
 
+/**
+ * A placement number from the query string, or the fallback.
+ *
+ * Not `Number(x) || fallback`: that treats a legitimate 0 as absent, and
+ * longitude 0 is the Greenwich meridian — which runs through London, the one
+ * place this is guaranteed to be used.
+ */
+const placedNum = (key, fallback) => {
+  const raw = placed(key);
+  if (raw === null || raw.trim() === '') return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+};
+
 const num = (key, fallback) => {
   const value = Number.parseFloat(params.get(key));
   return Number.isFinite(value) ? value : fallback;
@@ -93,11 +107,11 @@ export const config = {
   /** Placement — edit location.js, not this. Query params override for testing. */
   anchor: {
     mode: placed('mode') ?? DEFAULT_MODE,
-    lat: Number(placed('lat')) || INSTALLATION.lat,
-    lon: Number(placed('lon')) || INSTALLATION.lon,
+    lat: placedNum('lat', INSTALLATION.lat),
+    lon: placedNum('lon', INSTALLATION.lon),
     bearing: num('bearing', RELATIVE_PLACEMENT.bearing),
     distance: num('distance', RELATIVE_PLACEMENT.distance),
-    elevation: Number(placed('elev')) || INSTALLATION.elevation,
+    elevation: placedNum('elev', INSTALLATION.elevation),
     /**
      * Past this many metres the model is a speck and walking does nothing
      * perceptible, which reads as "the AR is broken" rather than "you are in
@@ -132,7 +146,32 @@ export const config = {
      * +/-5-20 m. 0 disables the follow entirely and snaps to each fix.
      */
     smoothing: num('smooth', 1.2),
+
+    /**
+     * How many recent fixes to average into the position we actually use.
+     *
+     * A stationary phone reports a fix that wanders continuously inside its
+     * error circle, and following that drags the scene sideways while nobody is
+     * moving. A deadband was tried first and rejected: at walking pace a fix
+     * moves about 1.4 m per second, well inside any threshold big enough to
+     * suppress noise, so it swallowed real walking and reintroduced lurching.
+     *
+     * Averaging cannot confuse the two. Random error cancels — n fixes cut it
+     * by root n — while steady movement passes through with a fixed lag of
+     * roughly half the window. Three fixes is the compromise: it halves the
+     * wander while lagging a walk by about 1.5 s, or 2 m — invisible against
+     * GPS's own +/-10 m, and far less objectionable than the scene sliding
+     * about while you stand still.
+     */
+    averageFixes: Math.max(1, Math.round(num('avg', 3))),
   },
+
+  /**
+   * Rotation smoothing, 0-1. LocAR slerps by (1 - this) each frame, so higher
+   * is steadier but lags the sensors. Its own default of 0.2 barely filters
+   * anything, which leaves compass noise visible as jitter.
+   */
+  orientationSmoothing: num('smoothrot', 0.4),
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),

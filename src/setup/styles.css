@@ -46,6 +46,9 @@ button.primary:hover { filter: brightness(1.1); }
 .qr canvas { border-radius: .4rem; background: #fff; padding: .3rem; }
 .qr p { margin: 0; font-size: .7rem; line-height: 1.45; color: var(--dim); }
 #qr-warning { color: #f0883e; }
+#locate-status[data-quality="ok"] { color: #3fb950; }
+#locate-status[data-quality="rough"] { color: #f0883e; }
+#locate-status[data-quality="bad"] { color: #f85149; }
 
 footer { margin-top: auto; padding-top: .8rem; border-top: 1px solid var(--line);
   font-size: .7rem; color: var(--dim); line-height: 1.5; }
