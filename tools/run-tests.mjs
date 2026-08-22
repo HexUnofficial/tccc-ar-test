@@ -32,11 +32,11 @@ const SCENARIOS = [
 const run = (cmd, args, options = {}) =>
   spawn(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32', ...options });
 
-console.log('▸ building… (with the setup tool, so it can be tested)');
+console.log('▸ building…');
 const buildWith = (env) => run('npx', ['vite', 'build', '--logLevel', 'warn'], {
   env: { ...process.env, ...env },
 });
-if ((await once(buildWith({ INCLUDE_SETUP: '1' }), 'exit'))[0] !== 0) process.exit(1);
+if ((await once(buildWith({}), 'exit'))[0] !== 0) process.exit(1);
 
 console.log(`▸ serving on ${BASE_URL}`);
 const server = run('npx', ['vite', 'preview', '--port', String(PORT)], { stdio: 'ignore' });
@@ -126,21 +126,31 @@ console.log(`\n──── map picker ────`);
 
 server.kill();
 
-// The picker is an authoring tool. Shipping it would put a "move the aircraft
-// anywhere" page on the public site, so a plain build must leave it out.
+// The picker ships with the site now, but must stay opt-out-able: if the
+// placement is ever locked down, a build has to be able to drop it entirely.
 console.log('');
-console.log('──── production build ────');
+console.log('──── build variants ────');
 {
-  const [code] = await once(buildWith({ INCLUDE_SETUP: '' }), 'exit');
   const { existsSync } = await import('node:fs');
-  if (code !== 0) {
-    failed.push('production build');
-  } else if (existsSync('dist/setup.html')) {
-    console.error('  ✖ dist/setup.html exists - the authoring tool would be deployed');
-    failed.push('production build');
+  if (!existsSync('dist/setup.html')) {
+    console.error('  ✖ dist/setup.html missing - the picker should ship by default');
+    failed.push('build variants');
   } else {
-    console.log('  ✔ setup.html excluded from the production build');
+    console.log('  ✔ setup.html included by default');
   }
+
+  const [code] = await once(buildWith({ EXCLUDE_SETUP: '1' }), 'exit');
+  if (code !== 0) {
+    failed.push('build variants');
+  } else if (existsSync('dist/setup.html')) {
+    console.error('  ✖ EXCLUDE_SETUP=1 still produced dist/setup.html');
+    failed.push('build variants');
+  } else {
+    console.log('  ✔ EXCLUDE_SETUP=1 leaves it out');
+  }
+
+  // Leave dist as the real deployable.
+  if ((await once(buildWith({}), 'exit'))[0] !== 0) failed.push('build variants');
 }
 
 console.log(`\n${'═'.repeat(50)}`);

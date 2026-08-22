@@ -3,11 +3,18 @@ import { defineConfig } from 'vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
 /*
- * setup.html is an authoring tool, not part of the experience. It is served in
- * development but left out of the production bundle, so it can't be stumbled
- * across on the deployed site. Pass INCLUDE_SETUP=1 to build it deliberately.
+ * setup.html is an authoring tool rather than part of the experience, but it is
+ * deployed alongside it: served from the real origin its QR codes encode a
+ * public HTTPS URL, which is far easier to open on a phone than a LAN address
+ * behind a self-signed certificate.
+ *
+ * It is not linked from anywhere, and it only *emits* links — it cannot change
+ * the deployed experience by itself. What decides whether those links do
+ * anything is LOCKED in src/location.js.
+ *
+ * Set EXCLUDE_SETUP=1 to leave it out of a build.
  */
-const includeSetup = process.env.INCLUDE_SETUP === '1';
+const includeSetup = process.env.EXCLUDE_SETUP !== '1';
 
 // getUserMedia, geolocation and DeviceOrientationEvent all require a secure
 // context, so even local development has to be served over HTTPS.

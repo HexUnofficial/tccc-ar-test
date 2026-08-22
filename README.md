@@ -108,9 +108,21 @@ sampled from the same `createFlightPath` the AR page uses, not an approximation
 embankment. Sliders for leg length, turn radius, altitude and speed update it
 live.
 
-It gives you back two things: a URL to test with (plus a QR code, so you can
-pick on a laptop and scan it with the phone), and a snippet to paste into
-[src/location.js](src/location.js) when you're happy.
+Then, without copying anything:
+
+- **Preview here** opens the AR page on this machine with simulated GPS, standing
+  off to the side of the run so you can see the whole sweep. Drag to look, WASD
+  to walk. This is the one that works on a laptop.
+- **Open for real** opens the same URL using the device's actual location and
+  camera — only meaningful on a phone at the site.
+- **The QR** encodes that same real URL, for scanning with a phone.
+
+Note the QR is useless if you opened the picker at `localhost`, because on a
+phone that resolves to the phone. Open it via the `Network:` address that
+`npm run dev` prints instead; the page says so when it detects this.
+
+There is also a snippet to paste into [src/location.js](src/location.js) once
+you're happy, which is what makes the placement permanent.
 
 **It is a development tool and is never deployed.** `npm run build` leaves
 `setup.html` out of the bundle entirely; `INCLUDE_SETUP=1 npm run build` opts
