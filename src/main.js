@@ -96,7 +96,10 @@ async function startAR() {
     deviceOrientationOptions: {
       enabled: !config.simulate,
       enablePermissionDialog: false,
-      smoothingFactor: config.orientationSmoothing,
+      // 1 disables LocAR's own per-event easing. We ease per rendered frame
+      // instead — see `followAim` — so its factor would only compound with ours
+      // on the wrong clock.
+      smoothingFactor: 1,
     },
   });
 
@@ -297,40 +300,38 @@ async function startAR() {
   let smoothedFps = 60;
 
   /*
-   * Rotation smoothing, but only while you are holding still.
+   * Let the display, not the compass, decide when the view moves.
    *
-   * LocAR eases the camera towards each sensor reading —
-   * `quaternion.slerp(target, 1 - smoothingFactor)` — so a higher factor filters
-   * more compass noise and also lags further behind the phone. At a fixed 0.4
-   * that lag is the dominant artefact: the world is pinned to compass north, so
-   * the camera arriving late reads as the aircraft sliding around and settling,
-   * as though it were chasing you rather than sitting still.
+   * LocAR rotates the camera inside its deviceorientation handler and its
+   * update() does nothing, so between sensor events the view is frozen. We
+   * render at 60fps; iOS delivers orientation more slowly and at uneven
+   * intervals. The result is that panning advances in steps timed by the sensor
+   * rather than by the display, and that stepping is the jitter — which is why
+   * no value of smoothingFactor fixed it. Smoothing only changes how big each
+   * step is, never that the motion is quantised to when readings land.
    *
-   * The two problems never happen at once, so they do not need one setting.
-   * Standing still, the only thing moving is noise and heavy filtering costs
-   * nothing. Panning, the noise is swamped by real movement and lag is all you
-   * can see. So the factor is scaled by how fast the view is actually turning:
-   * full smoothing below 3°/s, none above 45°/s.
+   * So the sensor now drives a detached object and the camera eases towards it
+   * once per rendered frame. Motion becomes continuous at the display's rate,
+   * and what used to be a per-event fraction becomes an honest time constant:
+   * `?smoothrot=` in seconds. It doubles as latency matching — the camera feed
+   * is itself delayed by some tens of milliseconds, so easing the overlay
+   * slightly keeps the two closer together than snapping it to the sensor does.
    */
-  const STILL = THREE.MathUtils.degToRad(3);
-  const PANNING = THREE.MathUtils.degToRad(45);
-  const previousAim = new THREE.Quaternion().copy(camera.quaternion);
-  let spin = 0;
+  const aim = new THREE.Object3D();
+  aim.rotation.reorder('YXZ');
+  aim.quaternion.copy(camera.quaternion);
+  if (app.deviceOrientationControls) {
+    app.deviceOrientationControls.object = aim;
+    // Its own easing would compound with ours, and per event is the wrong clock.
+    app.deviceOrientationControls.smoothingFactor = 1;
+  }
 
-  function adaptOrientationSmoothing(dt) {
-    const controls = app.deviceOrientationControls;
-    if (!controls || dt <= 0) return;
-
-    // Measured off the camera, which is what the viewer is actually looking
-    // through — so the feedback settles rather than oscillating.
-    const turned = previousAim.angleTo(camera.quaternion) / dt;
-    previousAim.copy(camera.quaternion);
-    // Lightly filtered, or a single noisy frame would drop the smoothing that
-    // exists to suppress exactly that noise.
-    spin += (turned - spin) * Math.min(1, dt * 12);
-
-    const panning = THREE.MathUtils.clamp((spin - STILL) / (PANNING - STILL), 0, 1);
-    controls.smoothingFactor = config.orientationSmoothing * (1 - panning);
+  function followAim(dt) {
+    if (!app.deviceOrientationControls || dt <= 0) return;
+    const tau = config.orientationSmoothing;
+    // Exponential approach expressed per second, so the feel does not change
+    // with frame rate. tau <= 0 means track the sensor exactly.
+    camera.quaternion.slerp(aim.quaternion, tau > 0 ? 1 - Math.exp(-dt / tau) : 1);
   }
 
   renderer.setAnimationLoop(() => {
@@ -339,7 +340,7 @@ async function startAR() {
     if (config.simulate) simulator?.update(delta);
     else {
       app.deviceOrientationControls?.update();
-      adaptOrientationSmoothing(delta);
+      followAim(delta);
     }
 
     if (tracking) {

@@ -113,13 +113,17 @@ async function open(query) {
 }
 
 /*
- * --- rotation smoothing gets out of the way while you pan ---
+ * --- the view keeps moving between sensor readings ---
  *
- * A fixed smoothing factor cannot win: enough of it to filter compass noise
- * while you stand still is enough to lag visibly while you turn, and because
- * the scene is pinned to compass north that lag reads as the aircraft sliding
- * about as though it were following you. So the factor is scaled by how fast
- * the view is turning, and it is the scaling that has to keep working.
+ * LocAR rotates the camera inside its deviceorientation handler and its
+ * update() is a no-op, so the view used to advance only when a reading landed:
+ * motion was quantised to the sensor's clock rather than the display's, which
+ * is the stepping that read as jitter while panning. No smoothing factor could
+ * fix that — it only changed the size of each step.
+ *
+ * The sensor now drives a detached object and the camera eases towards it once
+ * per rendered frame, so the test is that the view still moves on frames where
+ * no reading arrived at all.
  */
 {
   const { ctx, page } = await open('?sim=0&mode=relative&distance=20&bearing=0');
@@ -131,20 +135,34 @@ async function open(query) {
     });
     window.dispatchEvent(event);
   }, alpha);
-  const factor = () => page.evaluate(() => window.__ar.app.deviceOrientationControls.smoothingFactor);
 
-  for (let i = 0; i < 60; i += 1) { await aim(90); await page.waitForTimeout(16); }
-  const still = await factor();
+  // Settle, then deliver exactly one new heading and let frames run with no
+  // further events. Sample the camera each frame.
+  for (let i = 0; i < 20; i += 1) { await aim(90); await page.waitForTimeout(16); }
+  await aim(150);
+  const track = await page.evaluate(() => new Promise((resolve) => {
+    const seen = [];
+    const camera = window.__ar.camera;
+    let frames = 0;
+    const step = () => {
+      seen.push(camera.quaternion.toArray().join(','));
+      frames += 1;
+      if (frames < 12) requestAnimationFrame(step); else resolve(seen);
+    };
+    requestAnimationFrame(step);
+  }));
 
-  for (let i = 0; i < 60; i += 1) { await aim(90 + i * 3); await page.waitForTimeout(16); }
-  const panning = await factor();
+  const distinct = new Set(track).size;
+  check('camera advances on frames with no new reading', distinct > 3,
+    `${distinct} distinct orientations across ${track.length} frames`);
 
-  for (let i = 0; i < 90; i += 1) { await aim(270); await page.waitForTimeout(16); }
-  const settled = await factor();
-
-  check('holding still filters hard', still > 0.3, `factor ${still.toFixed(3)}`);
-  check('panning releases the filter', panning < 0.1, `factor ${panning.toFixed(3)}`);
-  check('filtering returns once at rest', settled > 0.3, `factor ${settled.toFixed(3)}`);
+  // And it must actually arrive, not ease forever.
+  for (let i = 0; i < 40; i += 1) { await aim(150); await page.waitForTimeout(16); }
+  const settled = await page.evaluate(() => {
+    const { camera, app, THREE } = window.__ar;
+    return camera.quaternion.angleTo(app.deviceOrientationControls.object.quaternion) * 180 / Math.PI;
+  });
+  check('camera converges on the sensor', settled < 1, `${settled.toFixed(3)}° short`);
   await ctx.close();
 }
 

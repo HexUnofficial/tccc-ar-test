@@ -173,11 +173,21 @@ export const config = {
   },
 
   /**
-   * Rotation smoothing, 0-1. LocAR slerps by (1 - this) each frame, so higher
-   * is steadier but lags the sensors. Its own default of 0.2 barely filters
-   * anything, which leaves compass noise visible as jitter.
+   * How long the view takes to catch up to the sensors, in seconds.
+   *
+   * A time constant, not a fraction: the camera eases towards the latest
+   * reading once per rendered frame, so this is frame-rate independent and
+   * means something concrete — after this long, roughly two thirds of the way
+   * there. It replaced LocAR's per-event factor, which quantised all motion to
+   * sensor arrivals and was the actual source of the jitter while panning.
+   *
+   * 0.08 s is deliberately small but not zero. It filters compass noise while
+   * standing still, and it leaves the overlay very slightly behind the phone,
+   * which is the right direction to err: the camera feed is itself delayed by
+   * some tens of milliseconds, so a snap-to-sensor overlay runs ahead of the
+   * picture it is drawn over. 0 tracks the sensors exactly.
    */
-  orientationSmoothing: num('smoothrot', 0.4),
+  orientationSmoothing: num('smoothrot', 0.08),
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
