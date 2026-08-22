@@ -155,15 +155,6 @@ body { background: transparent; }
 
 .gate-card { position: relative; max-width: 22rem; text-align: center; }
 
-.gate-kicker {
-  margin: 0 0 0.15rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
-
 .gate-logotype {
   margin: 0;
   font-family: "Playball", "Brush Script MT", cursive;
