@@ -41,6 +41,31 @@ console.log(`  ${config.model} — behaviour "${config.behaviour}", clip "${conf
 const failures = [];
 if (!config.hasFlightPath) failures.push('no flight path was created for the default model');
 
+/*
+ * The banner must render single-sided. It is a two-layer sheet whose faces
+ * carry separate UVs — one copy of the lettering per side — so drawing back
+ * faces too puts the reversed copy through the front one and the banner reads
+ * forwards and backwards at once. The export marks every material doubleSided,
+ * so this is corrected at load time and has to stay corrected.
+ */
+const bannerSides = await page.evaluate(() => {
+  const seen = [];
+  window.__ar.model.root.traverse((child) => {
+    if (!child.isMesh) return;
+    for (const material of [].concat(child.material)) {
+      if (material && /banner/i.test(material.name)) seen.push(material.side);
+    }
+  });
+  // THREE.FrontSide === 0, THREE.DoubleSide === 2.
+  return { count: seen.length, doubleSided: seen.filter((s) => s === 2).length };
+});
+if (bannerSides.count === 0) {
+  failures.push('found no banner material to check the facing of');
+} else if (bannerSides.doubleSided > 0) {
+  failures.push(`${bannerSides.doubleSided} banner material(s) still double-sided; `
+    + 'the reversed lettering will bleed through');
+}
+
 // Sample one full circuit by scrubbing, so the result doesn't depend on timing.
 // Must be the path's own lap time — `flightConfig.period` only applies to the
 // circle and figure-eight shapes, and using it here silently covers 42% of a

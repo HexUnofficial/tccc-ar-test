@@ -77,8 +77,31 @@ export async function loadModel(onProgress) {
   // Ground models stand on the anchor; flying ones are centred on their path.
   model.position.y -= preset.behaviour === 'flight' ? centre.y : bounds.min.y;
 
+  /*
+   * Cull backfaces on the banner.
+   *
+   * The export marks all 17 materials doubleSided, which for closed geometry
+   * means every interior face is drawn too. On the banner that is actively
+   * wrong: it is a two-layer sheet whose faces carry separate UVs (the texture
+   * holds two copies of the lettering, one per side), and the layers sit about
+   * 34 units apart in a banner 1099 long — well under a centimetre once scaled
+   * to metres. So the inside of the far layer z-fights with the outside of the
+   * near one and its mirrored lettering bleeds through, which reads as the
+   * banner facing forwards and backwards at the same time.
+   *
+   * Done here rather than in the model pipeline so it survives the next
+   * re-export, and matched on the material rather than the mesh because the
+   * banner shares one material with its ropes, plank and connectors — all
+   * closed too, so all correct to cull. The genuinely single-sided parts
+   * (Cockpit, Engine_Cap, Radiator) carry different materials and are left
+   * double-sided; they live inside the fuselage regardless.
+   */
   model.traverse((child) => {
-    if (child.isMesh) child.frustumCulled = false;
+    if (!child.isMesh) return;
+    child.frustumCulled = false;
+    for (const material of Array.isArray(child.material) ? child.material : [child.material]) {
+      if (material && /banner/i.test(material.name)) material.side = THREE.FrontSide;
+    }
   });
 
   /*
