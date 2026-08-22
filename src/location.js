@@ -11,7 +11,7 @@ export const INSTALLATION = {
   // east on a bearing of 82.6°. `label` only ever appeared in the HUD's "you
   // are N m from X" warning, and the default UI no longer shows that warning
   // at all (see config.js `ui`), so it is inert unless you turn the HUD back
-  // on with ?debug=1.
+  // on with ?ui=debug.
   label: 'Set me',
   lat: 51.5104797,
   lon: -0.0900796,

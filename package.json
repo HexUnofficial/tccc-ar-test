@@ -9,7 +9,7 @@
     "optimize": "node tools/optimize-model.mjs",
     "test": "node tools/run-tests.mjs",
     "screenshot": "node tools/screenshot.mjs",
-    "model:tccc": "mkdir -p .tmp && gltf-transform png source-models/TcccAirplane-optimized.glb .tmp/tccc-png.glb --formats webp --quality 90 && node tools/optimize-geometry.mjs .tmp/tccc-png.glb public/models/tccc-airplane.glb",
+    "model:tccc": "node tools/optimize-geometry.mjs source-models/TCCCAirplane_glb-optimized_V4.glb public/models/tccc-airplane.glb",
     "model:witch": "node tools/optimize-model.mjs source-models/witch.glb public/models/witch.glb",
     "model:tccc-from-fbx": "node tools/fbx-to-glb.mjs source-models/TcccAirplane_FBX.fbx .tmp/tccc-raw.glb && node tools/optimize-geometry.mjs .tmp/tccc-raw.glb public/models/tccc-airplane.glb"
   },

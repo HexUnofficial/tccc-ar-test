@@ -216,7 +216,7 @@ export const config = {
    * Defaults to `none`: over a live camera feed in front of an audience, the
    * arrow is the only overlay that earns its place. Note what that costs — a
    * denied location permission or a lost fix now says nothing at all, so if the
-   * aircraft fails to appear on site, reach for `?debug=1` to find out why.
+   * aircraft fails to appear on site, reach for `?ui=debug` to find out why.
    *
    * `ui` is the only thing that turns the interface on, and `?debug=1` is
    * deliberately inert. It used to be a shorthand for `?ui=debug`, and the

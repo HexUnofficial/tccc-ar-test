@@ -187,7 +187,7 @@ function render() {
   /*
    * Deliberately no debug=1. These links are what gets scanned, previewed and
    * shown to people, so they should look exactly like the deployed experience —
-   * arrow only. Add ?debug=1 by hand when you actually want the telemetry.
+   * arrow only. Add ?ui=debug by hand when you actually want the telemetry.
    */
   /*
    * Resolve against the containing directory rather than string-stripping

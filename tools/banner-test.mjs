@@ -19,7 +19,7 @@ const ctx = await browser.newContext({
   ignoreHTTPSErrors: true, viewport: { width: 414, height: 896 },
 });
 const page = await ctx.newPage();
-await page.goto(`${BASE}/?mode=fixed&debug=1`, { waitUntil: 'load' });
+await page.goto(`${BASE}/?mode=fixed&ui=debug`, { waitUntil: 'load' });
 await page.waitForSelector('#gate-start:not([disabled])', { timeout: 60_000 });
 await page.click('#gate-start');
 await page.waitForFunction(() => document.getElementById('f-anchor')?.textContent !== '—', null, { timeout: 20_000 });

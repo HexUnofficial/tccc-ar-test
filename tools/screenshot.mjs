@@ -16,7 +16,7 @@ const ctx = await browser.newContext({
   deviceScaleFactor: 2,
 });
 const page = await ctx.newPage();
-await page.goto('https://localhost:4173/?debug=1', { waitUntil: 'load' });
+await page.goto('https://localhost:4173/?ui=debug', { waitUntil: 'load' });
 await page.waitForSelector('#gate-start:not([disabled])', { timeout: 60000 });
 await page.screenshot({ path: '.tmp/shot-gate.png' });
 
