@@ -33,8 +33,25 @@ const emitted = await picker.evaluate(() => ({
   url: document.getElementById('url').value,
   snippet: document.getElementById('snippet').value,
   outline: window.__setup.outline.points.length,
+  // Whatever actually carries the user to the AR page, as the DOM has it.
+  previewHref: document.getElementById('preview').getAttribute('href'),
+  openHref: document.getElementById('open-ar').getAttribute('href'),
 }));
 console.log(`  picker drew a ${emitted.outline}-point circuit and emitted a URL`);
+
+/*
+ * "Open for real" and "Preview here" must be real links with real hrefs.
+ * They used to be buttons calling window.open() with a features string, which
+ * iOS Safari classifies as a popup and blocks silently — so on the one device
+ * the picker exists to serve, both buttons did nothing at all. Reading #url
+ * (as the rest of this test does) would never have caught that.
+ */
+if (emitted.openHref !== emitted.url) {
+  failures.push(`"Open for real" href is ${emitted.openHref}, expected ${emitted.url}`);
+}
+if (!emitted.previewHref?.includes('sim=1')) {
+  failures.push(`"Preview here" href is not a simulated link: ${emitted.previewHref}`);
+}
 
 /*
  * The emitted link must point at the AR page, never back at the picker. The

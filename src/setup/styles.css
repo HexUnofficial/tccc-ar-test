@@ -35,11 +35,13 @@ textarea { resize: vertical; line-height: 1.5; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .row { display: flex; gap: .4rem; }
-button { padding: .5rem .8rem; border-radius: .4rem; border: 1px solid var(--line);
+/* .btn covers the anchors in "Test it now" — see the comment in setup.html. */
+button, .btn { padding: .5rem .8rem; border-radius: .4rem; border: 1px solid var(--line);
   background: #21262d; color: var(--ink); font-size: .78rem; cursor: pointer; white-space: nowrap; }
-button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 600; }
-button.primary:hover { filter: brightness(1.1); }
+.btn { display: inline-block; text-decoration: none; line-height: normal; }
+button:hover, .btn:hover { border-color: var(--accent); }
+.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 600; }
+.primary:hover { filter: brightness(1.1); }
 .small { font-size: .7rem; margin: .5rem 0 .6rem; }
 
 .qr { display: flex; gap: .75rem; align-items: center; margin-top: .7rem; }

@@ -183,6 +183,7 @@ function render() {
   const base = new URL('.', location.href).href;
   const url = `${base}?${query}`;
   el('url').value = url;
+  el('open-ar').href = url;
 
   /*
    * The desktop preview needs a viewpoint. Standing at the anchor puts you
@@ -195,6 +196,7 @@ function render() {
   preview.set('distance', standOff.toFixed(0));
   preview.set('viewfrom', ((heading + 90) % 360).toFixed(0));
   previewUrl = `${base}?${preview}`;
+  el('preview').href = previewUrl;
 
   /*
    * A QR pointing at localhost is useless: scanned on a phone it resolves to
@@ -327,8 +329,8 @@ const copy = (button, source) => button.addEventListener('click', async () => {
 copy(el('copy-url'), 'url');
 copy(el('copy-snippet'), 'snippet');
 
-el('preview').addEventListener('click', () => window.open(previewUrl, '_blank', 'noopener'));
-el('open-ar').addEventListener('click', () => window.open(el('url').value, '_blank', 'noopener'));
+// "Preview here" and "Open for real" are anchors whose hrefs render() keeps in
+// step with the sliders; there is no click handler to attach.
 
 render();
 

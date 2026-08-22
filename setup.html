@@ -58,8 +58,15 @@
     <section>
       <h2>Test it now</h2>
       <div class="row">
-        <button id="preview" type="button" class="primary">Preview here</button>
-        <button id="open-ar" type="button">Open for real</button>
+        <!--
+          Real links, not buttons calling window.open(). A window.open() with a
+          features string is classified as a popup request, and iOS Safari
+          blocks those silently — the button simply did nothing on the exact
+          device you test on site with. An anchor click is a user-initiated
+          navigation and cannot be popup-blocked. hrefs are set by render().
+        -->
+        <a id="preview" class="btn primary" target="_blank" rel="noopener">Preview here</a>
+        <a id="open-ar" class="btn" target="_blank" rel="noopener">Open for real</a>
         <button id="copy-url" type="button">Copy</button>
       </div>
       <p class="muted small">
