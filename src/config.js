@@ -195,31 +195,6 @@ export const config = {
    */
   orientationSmoothing: num('smoothrot', 0.08),
 
-  /**
-   * Horizontal field of view of the rear camera's *full* frame, in degrees.
-   *
-   * This is the number that decides whether the overlay sticks to the world or
-   * slides around on top of it, and there is no browser API that reports it —
-   * getUserMedia will tell you the pixel dimensions of the feed and nothing
-   * about the optics. So it is a constant, and getting it wrong is not a
-   * cosmetic error: render the world wider than the lens actually sees and a
-   * given real-world angle maps to too few pixels, so virtual objects travel
-   * across the screen more slowly than the scene behind them. That reads
-   * exactly as the model drifting along with the phone instead of staying put
-   * — panning away never quite loses it, and it creeps back into frame.
-   *
-   * 68 degrees is about right for the default rear camera on both iPhone and
-   * most Android handsets (roughly a 26 mm equivalent). LocAR's own default of
-   * 80 is a wide-angle figure and overstates every phone we have pointed at
-   * this, which is the direction that causes the dragging.
-   *
-   * Calibrate it on the actual device rather than trusting the default: stand
-   * still, line the model up against something real at the edge of frame, and
-   * pan across. Too high and the model lags the background; too low and it
-   * races ahead. `?hfov=` retunes it without a redeploy.
-   */
-  cameraHFov: num('hfov', 68),
-
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
 

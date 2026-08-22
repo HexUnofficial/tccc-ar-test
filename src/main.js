@@ -83,7 +83,7 @@ async function startAR() {
 
   const app = new LocAR.App({
     canvas,
-    cameraOptions: { hFov: config.cameraHFov, near: 0.01, far: 5000 },
+    cameraOptions: { hFov: 80, near: 0.01, far: 5000 },
     gpsOptions: {
       gpsMinAccuracy: config.gps.minAccuracy,
       gpsMinDistance: config.gps.minDistance,
@@ -120,64 +120,6 @@ async function startAR() {
     gateButton.disabled = false;
     return;
   }
-
-  /**
-   * Match the render frustum to the slice of the camera feed actually on screen.
-   *
-   * LocAR does size the camera to the feed, but along the way it treats field
-   * of view as if it were linear in angle — `fov = hFov / aspect`, and a
-   * crop scaled the same way. Field of view is linear in the *tangent*, not the
-   * angle, so on a portrait phone that formula lands several degrees wide. The
-   * error is a constant factor between real angles and rendered ones, so it
-   * doesn't show up as a distortion you'd notice in a still frame; it shows up
-   * the moment you pan, as the overlay travelling at a slightly different rate
-   * from the scene it's drawn over. The model appears to be dragged along by
-   * the phone rather than sitting on its own patch of sky.
-   *
-   * `object-fit: cover` on the video means the feed is scaled until it covers
-   * the viewport and the overhang on its long axis is thrown away, so the
-   * on-screen field of view is narrower than the lens's by exactly the fraction
-   * that survives the crop. Both steps are done in tangent space here.
-   */
-  function matchCameraFov() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    if (width === 0 || height === 0) return;
-    const aspect = width / height;
-
-    // The feed is delivered in the sensor's own landscape orientation; held
-    // portrait, it is the short edge that spans the screen's width.
-    const feed = app.cameraFeedDimensions;
-    const feedWidth = feed ? (aspect > 1 ? feed.landWidth : feed.landHeight) : null;
-    const feedHeight = feed ? (aspect > 1 ? feed.landHeight : feed.landWidth) : null;
-
-    // Fraction of the feed's width left after `cover` crops it. 1 when the
-    // feed is narrower than the viewport (it is the top and bottom that go),
-    // and 1 before the webcam reports its size, which is the honest fallback.
-    let visibleWidth = 1;
-    if (feedWidth > 0 && feedHeight > 0) {
-      const cover = Math.max(width / feedWidth, height / feedHeight);
-      visibleWidth = Math.min(1, width / (feedWidth * cover));
-    }
-
-    const tanHalfH = Math.tan(THREE.MathUtils.degToRad(config.cameraHFov) / 2) * visibleWidth;
-    camera.aspect = aspect;
-    camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(tanHalfH / aspect));
-    camera.updateProjectionMatrix();
-  }
-
-  /*
-   * The webcam starts independently of the promise above — `start()` resolves
-   * on the orientation grant, which can easily win the race — so correct the
-   * frustum now and again when the feed finally reports its dimensions.
-   *
-   * These listeners are registered after LocAR's own, and both it and we write
-   * `camera.fov`, so ours runs second and has the last word on every resize.
-   */
-  app.webcam?.on?.('webcamstarted', matchCameraFov);
-  window.addEventListener('resize', matchCameraFov);
-  window.addEventListener('orientationchange', matchCameraFov);
-  matchCameraFov();
 
   gate.hidden = true;
   hud.setStatus(config.simulate ? 'Simulated GPS — drag to look, WASD to walk' : 'Waiting for GPS…', 'warn');
