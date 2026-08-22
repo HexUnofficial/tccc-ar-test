@@ -86,11 +86,17 @@ for (let i = 1; i < rows.length; i += 1) {
   }
 }
 
-// And the camera must actually be tracking the fix, not drifting.
+/*
+ * The camera must track the fix, but it deliberately lags it: positions are
+ * averaged over the last few fixes to stop GPS wander dragging the scene about
+ * while the viewer stands still (see config.gps.averageFixes). That lag is a
+ * chosen trade, so bound it rather than pretending it is not there.
+ */
+const MAX_LAG = 5; // metres
 for (const row of rows) {
-  if (Math.abs(row.gap - row['walked to (m)']) > 1) {
-    failures.push(`at ${row['walked to (m)']} m the camera sits ${row.gap} m away`);
-  }
+  const lag = row.gap - row['walked to (m)'];
+  if (lag < -1) failures.push(`at ${row['walked to (m)']} m the camera has overshot to ${row.gap} m`);
+  if (lag > MAX_LAG) failures.push(`at ${row['walked to (m)']} m the camera lags ${lag.toFixed(1)} m behind`);
 }
 
 // A 6 m jump should glide, not teleport — otherwise the size pops.

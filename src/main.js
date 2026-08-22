@@ -93,7 +93,11 @@ async function startAR() {
     projection: new LocalMetresProjection(),
     // We already handled the iOS grant above; in simulate mode we drive the
     // camera with the mouse instead of the sensors.
-    deviceOrientationOptions: { enabled: !config.simulate, enablePermissionDialog: false },
+    deviceOrientationOptions: {
+      enabled: !config.simulate,
+      enablePermissionDialog: false,
+      smoothingFactor: config.orientationSmoothing,
+    },
   });
 
   const { scene, camera, renderer } = app;
@@ -214,6 +218,7 @@ async function startAR() {
   let followSpeed = 0;
   let lastFixAt = null;
   let fixInterval = 1; // seconds between fixes, smoothed
+  const recentFixes = [];
 
   // Note: GPS events are emitted by the LocAR engine, not the App wrapper.
   locar.on('gpsupdate', (event) => {
@@ -221,8 +226,18 @@ async function startAR() {
     viewer = { lat: latitude, lon: longitude, accuracy };
     gpsError = null; // a good fix supersedes any earlier failure
 
-    // LocAR has already written the new position to the camera by this point.
-    gpsTarget.copy(camera.position);
+    /*
+     * LocAR has already written the raw fix to the camera. Average the last few
+     * rather than following each one: see config.gps.averageFixes for why a
+     * deadband was the wrong tool here.
+     */
+    recentFixes.push(camera.position.clone());
+    while (recentFixes.length > config.gps.averageFixes) recentFixes.shift();
+
+    gpsTarget.set(0, 0, 0);
+    for (const fix of recentFixes) gpsTarget.add(fix);
+    gpsTarget.divideScalar(recentFixes.length);
+    gpsTarget.y = camera.position.y;
 
     const now = performance.now() / 1000;
     if (lastFixAt !== null) {

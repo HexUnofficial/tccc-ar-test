@@ -135,7 +135,7 @@ function render() {
   circuit.setLatLngs(points);
   runLine.setLatLngs([[state.a.lat, state.a.lon], [state.b.lat, state.b.lon]]);
 
-  el('r-anchor').textContent = `${centre.lat.toFixed(6)}, ${centre.lon.toFixed(6)}`;
+  el('r-anchor').textContent = `${centre.lat.toFixed(7)}, ${centre.lon.toFixed(7)}`;
   el('r-heading').textContent = `${heading.toFixed(1)}°`;
   el('r-length').textContent = `${length.toFixed(0)} m`;
   el('r-apart').textContent = `${(state.turnRadius * 2).toFixed(0)} m`;
@@ -164,8 +164,8 @@ function render() {
 
   const query = new URLSearchParams({
     mode: 'fixed',
-    lat: centre.lat.toFixed(6),
-    lon: centre.lon.toFixed(6),
+    lat: centre.lat.toFixed(7),
+    lon: centre.lon.toFixed(7),
     heading: heading.toFixed(1),
     length: length.toFixed(0),
     turn: String(state.turnRadius),
@@ -209,8 +209,8 @@ function render() {
   el('snippet').value = [
     'export const INSTALLATION = {',
     "  label: 'Set me',",
-    `  lat: ${centre.lat.toFixed(6)},`,
-    `  lon: ${centre.lon.toFixed(6)},`,
+    `  lat: ${centre.lat.toFixed(7)},`,
+    `  lon: ${centre.lon.toFixed(7)},`,
     '  elevation: 0,',
     '};',
     '',
@@ -289,10 +289,25 @@ el('locate').addEventListener('click', () => {
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
       centreOn(coords.latitude, coords.longitude, 16);
+      /*
+       * Lead with the accuracy, not the coordinates. The fix itself is exact to
+       * within a centimetre by the time it reaches the URL; what makes "use my
+       * location" land in the wrong place is the reading, and on anything
+       * without a GPS chip that is a WiFi or IP lookup that can be a kilometre
+       * out. The number people need to see is the plus-or-minus.
+       */
       const accuracy = coords.accuracy;
-      status.textContent = `Centred on ${coords.latitude.toFixed(5)}, `
-        + `${coords.longitude.toFixed(5)} (±${accuracy.toFixed(0)} m)`
-        + (accuracy > 100 ? ' — that is network positioning, so drag the pins to the real spot.' : '');
+      const quality = accuracy <= 25 ? 'ok' : accuracy <= 150 ? 'rough' : 'bad';
+      const status = el('locate-status');
+      status.dataset.quality = quality;
+      status.innerHTML = `<b>±${accuracy.toFixed(0)} m</b> — `
+        + `${coords.latitude.toFixed(7)}, ${coords.longitude.toFixed(7)}`
+        + (quality === 'ok'
+          ? ''
+          : quality === 'rough'
+            ? '<br>Too coarse to anchor with. Drag the pins to the real spot.'
+            : '<br>This is a network lookup, not GPS, and may be nowhere near you. '
+              + 'Open this page on a phone for a real fix, or drag the pins.');
     },
     (error) => {
       status.textContent = error.code === error.PERMISSION_DENIED

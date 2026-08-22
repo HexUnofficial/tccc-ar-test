@@ -156,6 +156,29 @@ if (Math.abs(applied.heading - SITE.heading) > 1) {
   failures.push(`AR flying ${applied.heading.toFixed(1)}°, expected ${SITE.heading}°`);
 }
 
+/*
+ * A coordinate of exactly 0 must be honoured, not treated as absent. Longitude
+ * 0 is the Greenwich meridian, which runs through London — the one place this
+ * is guaranteed to be used.
+ */
+{
+  const zeroPage = await arCtx.newPage();
+  await zeroPage.goto(`${BASE}/?mode=fixed&lat=0&lon=0&debug=1`, { waitUntil: 'load' });
+  await zeroPage.waitForSelector('#gate-start:not([disabled])', { timeout: 60_000 });
+  await zeroPage.click('#gate-start');
+  await zeroPage.waitForFunction(
+    () => document.getElementById('f-anchor')?.textContent !== '—',
+    { timeout: 20_000 },
+  );
+  const anchor = await zeroPage.evaluate(() => document.getElementById('f-anchor').textContent);
+  const [zLat, zLon] = anchor.split(',').map(Number);
+  console.log(`  ?lat=0&lon=0 anchors at ${anchor}`);
+  if (Math.abs(zLat) > 1e-6 || Math.abs(zLon) > 1e-6) {
+    failures.push(`?lat=0&lon=0 fell back to the configured site (${anchor})`);
+  }
+  await zeroPage.close();
+}
+
 failures.push(...errors);
 await browser.close();
 
