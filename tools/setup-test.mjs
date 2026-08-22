@@ -79,6 +79,44 @@ for (const path of ['/setup.html', '/setup']) {
 if (emitted.outline < 50) failures.push('circuit outline barely drawn');
 if (!emitted.snippet.includes(`lat: ${SITE.lat}`)) failures.push('location.js snippet has the wrong latitude');
 
+/*
+ * The "Ship it" snippet must carry the flight settings as code, not as a
+ * comment. It used to end with "// length 250, turn 40, ..." and point you at
+ * config.js, which made the snippet byte-identical however the sliders were
+ * set — so tuning the circuit and pasting the result changed the anchor and
+ * silently discarded everything else.
+ */
+const shipped = await picker.evaluate(async () => {
+  const move = (id, value) => {
+    const input = document.getElementById(id);
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const before = document.getElementById('snippet').value;
+  move('alt', '135');
+  move('speed', '47');
+  move('turn', '75');
+  move('size', '250');
+  return { before, after: document.getElementById('snippet').value };
+});
+
+if (shipped.before === shipped.after) {
+  failures.push('moving the sliders did not change the "Ship it" snippet at all');
+}
+for (const [label, needle] of [
+  ['altitude', 'altitude: 135'],
+  ['speed', 'speed: 47'],
+  ['turnRadius', 'turnRadius: 75'],
+  ['size', 'size: 250'],
+]) {
+  if (!shipped.after.includes(needle)) {
+    failures.push(`"Ship it" snippet does not carry ${label} as code (${needle})`);
+  }
+}
+if (/^\s*\/\/\s*length \d/m.test(shipped.after)) {
+  failures.push('"Ship it" snippet still emits the flight settings as a comment');
+}
+
 // The two pins ARE the run, so the emitted anchor must be their midpoint and
 // the emitted length their separation. Getting this wrong would put the circuit
 // half a run-length off the water.

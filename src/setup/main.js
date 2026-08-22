@@ -208,9 +208,18 @@ function render() {
 
   QRCode.toCanvas(el('qr'), url, { width: 104, margin: 0 }).catch(() => {});
 
+  /*
+   * Every value the sliders control, as code you can actually paste.
+   *
+   * These used to be a trailing comment pointing at config.js and models.js,
+   * which meant the snippet was byte-identical however you set the sliders —
+   * so pasting it changed the anchor and nothing else, and the circuit you had
+   * just spent ten minutes tuning on the map was silently discarded. FLIGHT in
+   * location.js exists so this can be one paste.
+   */
   el('snippet').value = [
     'export const INSTALLATION = {',
-    "  label: 'Set me',",
+    `  label: ${JSON.stringify(el('label').value.trim() || 'Set me')},`,
     `  lat: ${centre.lat.toFixed(7)},`,
     `  lon: ${centre.lon.toFixed(7)},`,
     '  elevation: 0,',
@@ -219,10 +228,13 @@ function render() {
     "export const DEFAULT_MODE = 'fixed';",
     `export const FLIGHT_HEADING = ${heading.toFixed(1)};`,
     '',
-    '// flight defaults in src/config.js, and size in src/models.js —',
-    '// or leave these as URL overrides:',
-    `//   length ${length.toFixed(0)}, turn ${state.turnRadius}, `
-      + `alt ${state.altitude}, speed ${state.speed}, size ${state.size}`,
+    'export const FLIGHT = {',
+    `  length: ${length.toFixed(0)},`,
+    `  turnRadius: ${state.turnRadius},`,
+    `  altitude: ${state.altitude},`,
+    `  speed: ${state.speed},`,
+    `  size: ${state.size},`,
+    '};',
   ].join('\n');
 }
 
@@ -258,6 +270,8 @@ for (const [id, key] of [['turn', 'turnRadius'], ['alt', 'altitude'], ['speed', 
 }
 
 // Recentre the whole run on a pasted coordinate, keeping its length and bearing.
+el('label').addEventListener('input', render);
+
 el('jump').addEventListener('change', (event) => {
   const match = event.target.value.match(/(-?[0-9]+(?:[.][0-9]+)?)\s*,\s*(-?[0-9]+(?:[.][0-9]+)?)/);
   if (!match) return;

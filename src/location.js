@@ -60,3 +60,25 @@ export const RELATIVE_PLACEMENT = {
   distance: 20, // metres
   bearing: 0, // degrees from true north; 0 = due north, 90 = east
 };
+
+/**
+ * The circuit as flown at this installation, and how big the aircraft is on it.
+ *
+ * These live here rather than in config.js so that the map picker's "Ship it"
+ * snippet can set them: everything you tune on that page now lands in one
+ * paste. config.js still owns the defaults for anything not listed here, and
+ * every value stays overridable from the query string for field testing.
+ *
+ *   length  metres of straight leg, or the string 'fit' to size it to the
+ *           frame at the anchor's range
+ *   size    overall length of the whole assembly — aircraft, tow line and
+ *           banner — in metres. null defers to the per-model figure in
+ *           models.js, which is what you want for anything but the aircraft.
+ */
+export const FLIGHT = {
+  length: 250,
+  turnRadius: 40,
+  altitude: 50,
+  speed: 20,
+  size: null,
+};

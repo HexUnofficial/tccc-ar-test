@@ -3,7 +3,9 @@
  * parameter, which is what makes field testing bearable — you can retune
  * placement, scale and facing from the phone's address bar without a redeploy.
  */
-import { DEFAULT_MODE, FLIGHT_HEADING, INSTALLATION, LOCKED, RELATIVE_PLACEMENT } from './location.js';
+import {
+  DEFAULT_MODE, FLIGHT, FLIGHT_HEADING, INSTALLATION, LOCKED, RELATIVE_PLACEMENT,
+} from './location.js';
 import { DEFAULT_MODEL, MODELS } from './models.js';
 
 const params = new URLSearchParams(location.search);
@@ -46,8 +48,12 @@ export const config = {
     return {
       ...preset,
       url: `${import.meta.env.BASE_URL}${preset.url}`,
-      /** Real-world size in metres, along whichever axis `scaleBy` names. */
-      size: num('size', num('height', preset.size)),
+      /**
+       * Real-world size in metres, along whichever axis `scaleBy` names.
+       * FLIGHT.size is the installation's own figure, set by the map picker;
+       * it falls back to the per-model default when left null.
+       */
+      size: num('size', num('height', FLIGHT.size ?? preset.size)),
       /** Extra yaw in degrees, to correct a model that doesn't face -Z. */
       yawOffset: num('yaw', 0),
       /** Rotate to face the viewer. Right for a character, wrong in flight. */
@@ -73,27 +79,27 @@ export const config = {
      * frame and being followed is the point. 'fit' instead sizes the leg to the
      * frame at the anchor's range, which is handy for close-up testing.
      */
-    length: params.get('length') ?? num('length', 250),
+    length: params.get('length') ?? FLIGHT.length,
 
     /**
      * Radius of the 180s at each end, in metres. This also sets how far apart
      * the two legs are (twice the radius), so keep it inside the river's width
      * or the aircraft will turn over the bank.
      */
-    turnRadius: num('turn', 40),
+    turnRadius: num('turn', FLIGHT.turnRadius),
 
     /**
      * Airspeed in m/s. 20 m/s is 72 km/h — slow for a real aircraft, but it
      * has to be followable by someone panning a phone from 300 m away.
      */
-    speed: num('speed', 20),
+    speed: num('speed', FLIGHT.speed),
 
     /**
      * Height above the anchor, in metres. At 50 m the aircraft sits about 10°
      * above the horizon from 300 m away, which clears the far bank; drop it and
      * it risks hiding behind buildings. The GLB's own clip bobs around this.
      */
-    altitude: num('alt', 50),
+    altitude: num('alt', FLIGHT.altitude),
     /** Maximum roll into a turn, in degrees. */
     maxBank: num('bank', 45),
     /** Seconds to roll into or out of a bank. 0 snaps. */
