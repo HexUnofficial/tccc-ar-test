@@ -177,8 +177,8 @@ Example: `?mode=relative&distance=10&bearing=270&height=3`
 
 ## The model
 
-Two are bundled, chosen with `?model=`. [src/models.js](src/models.js) holds the
-presets; the default is the aircraft.
+Three are bundled, chosen with `?model=`. [src/models.js](src/models.js) holds
+the presets; the default is `tccc`, the banner-towing aircraft.
 
 **Keep GLB, not FBX.** glTF/GLB is the native format of the web — three.js loads
 it directly, it carries PBR materials, skinning and animation in one binary
@@ -243,17 +243,51 @@ brought onto the direction of travel with `noseOffset` in the preset (this one
 is authored nose-along-−X, so it needs −90°), and the flight path owns
 horizontal motion only — vertical is deliberately left to the clip.
 
-### Shrinking a model
+### The TCCC aircraft, and why it is a GLB
+
+The source is `source-models/TcccAirplane_FBX.fbx`. We convert rather than load
+FBX at runtime, and the numbers are the argument:
+
+| | FBX at runtime | Converted GLB |
+|---|---|---|
+| Payload | **7.7 MB**, before textures | **0.6 MB**, textures included |
+| Textures | 27 loose PNGs, 27 requests | packed in, WebP, one file |
+| Loader | 51 KB gzipped | 30 KB gzipped |
+| Parse | JavaScript | Draco WASM |
+
+Same 289k-triangle mesh either way. FBX has no compression scheme at all; Draco
+plus simplification is what takes 27 MB to 0.6 MB, and the 10 MB budget is not
+survivable otherwise. FBX is an *interchange* format for moving between 3D
+tools; glTF is a *delivery* format for shipping to a browser.
 
 ```bash
-npm run optimize                                    # the witch
-node tools/optimize-model.mjs airplane_animation.glb public/models/airplane.glb
+npm run dev        # the converter needs a browser: three's FBXLoader wants a DOM
+npm run model:tccc # FBX -> GLB -> welded, simplified to 25%, Draco
 ```
 
-Resizes textures to 1024px and re-encodes as WebP. The witch went 8.2 MB →
-1.2 MB, the aircraft 418 KB → 205 KB — the latter mostly by cutting a 4096²
-texture down, which matters more for GPU memory than for download. Tune with
-`MAX_TEXTURE=512 WEBP_QUALITY=75`.
+**Its textures are missing.** The FBX has 156 texture slots and 77 file paths
+but **zero embedded `Content` nodes**, so it was exported with "Embed Media"
+off and the 27 PNGs it wants were never copied. It converts, flies and is
+correctly shaped, but renders untextured. Either re-export with Embed Media on,
+or drop the PNGs into `source-models/` and re-run. See
+[source-models/README.md](source-models/README.md).
+
+It also has **no animation clip of any kind** — no propeller, no bob — so the
+flight path is its only motion.
+
+### Shrinking a model
+
+Two passes, deliberately separate processes:
+
+- **[tools/optimize-model.mjs](tools/optimize-model.mjs)** — textures: resize to
+  1024px, re-encode as WebP. The witch went 8.2 MB → 1.2 MB.
+- **[tools/optimize-geometry.mjs](tools/optimize-geometry.mjs)** — geometry:
+  weld, simplify to 25%, Draco. The TCCC aircraft went 27.2 MB → 0.6 MB and
+  289k triangles → 83k.
+
+They cannot share a process: importing `@gltf-transform/functions` leaves sharp
+unable to encode, out of libvips. Tune with `MAX_TEXTURE=512 WEBP_QUALITY=75`
+and `SIMPLIFY_RATIO=0.15`.
 
 ## Automated tests
 

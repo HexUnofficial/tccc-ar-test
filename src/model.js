@@ -44,11 +44,14 @@ export async function loadModel(onProgress) {
 
   /*
    * Draco takes the aircraft from 27 MB to 0.6 MB, which is the difference
-   * between usable and not on mobile data. The decoder is served from our own
-   * origin rather than a CDN: it is ~250 KB of wasm, fetched only for models
-   * that actually need it, and one less third party to be down at the riverbank.
+   * between usable and not on mobile data.
+   *
+   * No setDecoderPath: three's DRACOLoader declares its decoder with
+   * `new URL(..., import.meta.url)`, so the bundler emits and fingerprints it
+   * automatically and serves it from our own origin. Pointing it at a hand-
+   * copied directory only risks getting the fallback files wrong.
    */
-  const draco = new DRACOLoader().setDecoderPath(`${import.meta.env.BASE_URL}draco/`);
+  const draco = new DRACOLoader();
   const loader = new GLTFLoader().setDRACOLoader(draco);
 
   const gltf = await loader.loadAsync(preset.url, (event) => {
@@ -101,6 +104,14 @@ export async function loadModel(onProgress) {
     root.add(createGroundShadow(footprint * 0.6));
   }
 
+  /*
+   * The local bounds of everything under `motion`, measured once. The HUD needs
+   * the model's whole extent, not just its origin: this aircraft tows a banner,
+   * so its centre sits in the empty gap on the tow line and leaves the frame
+   * long before the aircraft or the banner do.
+   */
+  const localBounds = new THREE.Box3().setFromObject(motion);
+
   let mixer = null;
   let clipName = null;
   if (gltf.animations.length > 0) {
@@ -110,5 +121,5 @@ export async function loadModel(onProgress) {
     clipName = clip.name;
   }
 
-  return { root, motion, yaw, mixer, clipName, preset };
+  return { root, motion, yaw, mixer, clipName, preset, localBounds };
 }

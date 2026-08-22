@@ -276,6 +276,9 @@ async function startAR() {
   const toSubject = new THREE.Vector3();
   const viewDirection = new THREE.Vector3();
   const ndc = new THREE.Vector3();
+  const viewFrustum = new THREE.Frustum();
+  const viewProjection = new THREE.Matrix4();
+  const worldBounds = new THREE.Box3();
   let smoothedFps = 60;
 
   renderer.setAnimationLoop(() => {
@@ -372,8 +375,36 @@ async function startAR() {
       // project() mirrors anything behind the camera, so un-mirror it.
       const x = behind ? -ndc.x : ndc.x;
       const y = behind ? -ndc.y : ndc.y;
-      // A small margin, so the arrow doesn't flicker at the very edge.
-      const onScreen = !behind && Math.abs(x) < 0.9 && Math.abs(y) < 0.9;
+
+      /*
+       * Whether the model is on screen is decided by its bounding box, not by
+       * its centre. Testing the centre made the arrow appear while the aircraft
+       * was still plainly in view, because the centre of a banner-towing
+       * aeroplane is the empty middle of the tow line.
+       *
+       * Corners that project in front of the camera give a 2D rect; if that
+       * rect overlaps the viewport at all, some part of the model is visible.
+       * A box straddling the camera plane always counts as visible.
+       */
+      /*
+       * Whether the model is on screen is a frustum test against its bounding
+       * box, not a check on its centre.
+       *
+       * Testing the centre made the arrow appear while the aircraft was still
+       * plainly in view, because the centre of a banner-towing aeroplane is the
+       * empty middle of the tow line. Hand-rolling the box test then got the
+       * far-off-axis case wrong — a box can straddle the camera plane while
+       * lying entirely off to one side. Three's Frustum handles every case.
+       */
+      viewFrustum.setFromProjectionMatrix(
+        viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+      );
+      const onScreen = model.localBounds
+        ? viewFrustum.intersectsBox(
+            worldBounds.copy(model.localBounds).applyMatrix4(model.motion.matrixWorld),
+          )
+        : !behind && Math.abs(x) < 1 && Math.abs(y) < 1;
+
       pointer = {
         angle: (Math.atan2(x, y) * 180) / Math.PI, // 0 = straight up
         range,

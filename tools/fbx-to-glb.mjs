@@ -10,8 +10,8 @@
 import { chromium } from 'playwright';
 import { rename, stat } from 'node:fs/promises';
 
-const SRC = process.argv[2] ?? 'TcccAirplane_FBX.fbx';
-const DST = process.argv[3] ?? 'public/models/tccc-airplane.glb';
+const SRC = process.argv[2] ?? 'source-models/TcccAirplane_FBX.fbx';
+const DST = process.argv[3] ?? '.tmp/converted.glb';
 const BASE = process.env.BASE_URL ?? 'https://localhost:5199';
 
 const browser = await chromium.launch({ args: ['--ignore-certificate-errors'] });
@@ -23,7 +23,7 @@ await page.waitForFunction(() => window.convert, { timeout: 30_000 });
 console.log(`converting ${SRC} …`);
 const [download, report] = await Promise.all([
   page.waitForEvent('download', { timeout: 180_000 }),
-  page.evaluate((src) => window.convert(`/models/${src}`), SRC),
+  page.evaluate((src) => window.convert(`/${src}`), SRC),
 ]);
 
 await download.saveAs(DST);
