@@ -7,11 +7,13 @@
  * more precision than GPS can resolve, so don't agonise over it.
  */
 export const INSTALLATION = {
-  // 174 St John St, London EC1V 4DE — 51°31'27.5"N 0°06'06.9"W
-  // DMS -> decimal is degrees + minutes/60 + seconds/3600, negated for W or S.
+  // Set from the map picker: on the Thames, with the run following the river
+  // east on a bearing of 101.1°. NOTE: `label` still reads 174 St John Street,
+  // which is no longer where these coordinates are — it is only used for the
+  // HUD's "you are N m from X" warning, so update it when convenient.
   label: '174 St John Street, London',
-  lat: 51.524306,
-  lon: -0.101917,
+  lat: 51.5104861,
+  lon: -0.1009996,
   /**
    * Metres above the viewer's feet. Leave at 0 for something standing on the
    * ground with you; raise it to put the model on a roof or a plinth.
@@ -53,7 +55,7 @@ export const LOCKED = false;
  * drop two Google Maps pins along the stretch you want and take the bearing
  * between them.
  */
-export const FLIGHT_HEADING = 'across';
+export const FLIGHT_HEADING = 101.1;
 
 /** Relative-mode placement: how far away, and on what compass bearing. */
 export const RELATIVE_PLACEMENT = {
@@ -75,10 +77,21 @@ export const RELATIVE_PLACEMENT = {
  *           banner — in metres. null defers to the per-model figure in
  *           models.js, which is what you want for anything but the aircraft.
  */
+/*
+ * Set from the map picker, as shown on screen.
+ *
+ * turnRadius is deliberately 20 m against advice, so that it is not mistaken
+ * for an oversight later: at 60 m/s a 20 m turn needs an 87 degree bank, which
+ * the 45 degree clamp in config.js cuts to a hard snap lasting about a second.
+ * It also puts the two legs 40 m apart while the assembly is 400 m long, so
+ * the banner is still outbound while the nose is already heading back and the
+ * model passes through itself at each end. Widening this to ~367 m — the
+ * radius a 60 m/s aircraft actually holds at 45 degrees — fixes both.
+ */
 export const FLIGHT = {
-  length: 250,
-  turnRadius: 40,
+  length: 2436,
+  turnRadius: 20,
   altitude: 50,
-  speed: 20,
-  size: null,
+  speed: 60,
+  size: 400,
 };
