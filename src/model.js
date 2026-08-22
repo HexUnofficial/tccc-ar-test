@@ -34,6 +34,70 @@ function createGroundShadow(radius) {
 }
 
 /**
+ * Does this geometry enclose a volume, or is it a one-sided sheet?
+ *
+ * Summing the vertex normals of a closed shell very nearly cancels, because
+ * every outward face is opposed by one pointing the other way. On an open sheet
+ * they all agree instead, so the sum keeps close to its full length. Measured
+ * on this aircraft: the banner comes out at 0.13, and the three genuinely
+ * one-sided parts at 0.98 to 1.00 — so 0.6 sits in open space between them.
+ */
+function enclosesVolume(geometry) {
+  const normal = geometry?.getAttribute('normal');
+  if (!normal || normal.count === 0) return false;
+
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < normal.count; i += 1) {
+    x += normal.getX(i);
+    y += normal.getY(i);
+    z += normal.getZ(i);
+  }
+  return Math.hypot(x, y, z) / normal.count < 0.6;
+}
+
+/**
+ * Turn off double-sided rendering wherever the geometry is solid.
+ *
+ * The export marks every material doubleSided, so interior faces are drawn as
+ * well as exterior ones. On the banner that is not merely wasteful but visibly
+ * wrong: it is a two-layer sheet whose two faces carry separate UVs — the
+ * texture holds one copy of the lettering per side — with the layers about 34
+ * units apart in a banner 1099 long, a few millimetres once scaled to metres.
+ * The inside of the far layer therefore draws over the outside of the near one
+ * and its reversed lettering bleeds through, so the banner reads forwards and
+ * backwards at once and neither is legible.
+ *
+ * Deliberately decided from the geometry rather than from material or mesh
+ * names: the model is redelivered by the 3D team as the design changes, and a
+ * rename would silently switch a name-matched fix back off with the only
+ * symptom being unreadable lettering. A closed shell never needs its inside
+ * drawn, so this is safe wherever it fires, and genuinely one-sided parts keep
+ * both faces.
+ *
+ * A material shared between a solid and a sheet stays double-sided — culling it
+ * would make the sheet vanish from one side, which is the one way this could
+ * make things worse.
+ */
+function cullBackfacesOnSolids(model) {
+  const sheetMaterials = new Set();
+  const solidMaterials = new Set();
+
+  model.traverse((child) => {
+    if (!child.isMesh) return;
+    const solid = enclosesVolume(child.geometry);
+    for (const material of [].concat(child.material)) {
+      if (material) (solid ? solidMaterials : sheetMaterials).add(material);
+    }
+  });
+
+  for (const material of solidMaterials) {
+    if (!sheetMaterials.has(material)) material.side = THREE.FrontSide;
+  }
+}
+
+/**
  * Load the GLB and normalise it into something we can drop onto a GPS anchor:
  * scaled to a real-world height in metres, with its feet at y = 0.
  *
@@ -77,32 +141,10 @@ export async function loadModel(onProgress) {
   // Ground models stand on the anchor; flying ones are centred on their path.
   model.position.y -= preset.behaviour === 'flight' ? centre.y : bounds.min.y;
 
-  /*
-   * Cull backfaces on the banner.
-   *
-   * The export marks all 17 materials doubleSided, which for closed geometry
-   * means every interior face is drawn too. On the banner that is actively
-   * wrong: it is a two-layer sheet whose faces carry separate UVs (the texture
-   * holds two copies of the lettering, one per side), and the layers sit about
-   * 34 units apart in a banner 1099 long — well under a centimetre once scaled
-   * to metres. So the inside of the far layer z-fights with the outside of the
-   * near one and its mirrored lettering bleeds through, which reads as the
-   * banner facing forwards and backwards at the same time.
-   *
-   * Done here rather than in the model pipeline so it survives the next
-   * re-export, and matched on the material rather than the mesh because the
-   * banner shares one material with its ropes, plank and connectors — all
-   * closed too, so all correct to cull. The genuinely single-sided parts
-   * (Cockpit, Engine_Cap, Radiator) carry different materials and are left
-   * double-sided; they live inside the fuselage regardless.
-   */
   model.traverse((child) => {
-    if (!child.isMesh) return;
-    child.frustumCulled = false;
-    for (const material of Array.isArray(child.material) ? child.material : [child.material]) {
-      if (material && /banner/i.test(material.name)) material.side = THREE.FrontSide;
-    }
+    if (child.isMesh) child.frustumCulled = false;
   });
+  cullBackfacesOnSolids(model);
 
   /*
    * Three nested groups, each owning exactly one concern:
