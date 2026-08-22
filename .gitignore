@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .tmp/
+# Scratch verification scripts and screenshots, written beside the source
+# while checking a change in a real browser. .tmp/ only covers the folder.
+.tmp-*
 *.local
 .DS_Store
 
