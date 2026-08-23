@@ -33,7 +33,7 @@ export const MODELS = {
    * needs turning through 180 degrees to fly down -Z.
    */
   tccc: {
-    url: 'models/tccc-airplane.glb?v=61a69104',
+    url: 'models/tccc-airplane.glb?v=036395ac',
     scaleBy: 'size',
     /*
      * Length of the whole assembly — aircraft, tow line and banner. Realistic
