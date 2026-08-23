@@ -313,9 +313,19 @@ async function startAR() {
    * So the sensor now drives a detached object and the camera eases towards it
    * once per rendered frame. Motion becomes continuous at the display's rate,
    * and what used to be a per-event fraction becomes an honest time constant:
-   * `?smoothrot=` in seconds. It doubles as latency matching — the camera feed
-   * is itself delayed by some tens of milliseconds, so easing the overlay
-   * slightly keeps the two closer together than snapping it to the sensor does.
+   * `?smoothrot=` in seconds.
+   *
+   * That easing is not the only thing running late, though. The reading itself
+   * describes where the phone was, and the frame we draw from it is presented a
+   * frame or two later again. Because the scene is pinned to compass north, all
+   * of it shows up as the world drifting with the pan — which looks like the
+   * aircraft following you instead of holding its anchor.
+   *
+   * `?predict=` answers that by aiming where the phone is going rather than
+   * where it was: the angular velocity of the readings, extrapolated forward by
+   * that many seconds. 0 disables it. It is off by default because the right
+   * value is whatever cancels this device's own latency, and that is a thing to
+   * feel on the phone, not to guess here.
    */
   const aim = new THREE.Object3D();
   aim.rotation.reorder('YXZ');
@@ -326,12 +336,54 @@ async function startAR() {
     app.deviceOrientationControls.smoothingFactor = 1;
   }
 
+  const previousAim = new THREE.Quaternion().copy(aim.quaternion);
+  const aimStep = new THREE.Quaternion();
+  const spinAxis = new THREE.Vector3(0, 1, 0);
+  const target = new THREE.Quaternion();
+  const lead = new THREE.Quaternion();
+  /** Smoothed angular speed of the sensor readings, radians per second. */
+  let spin = 0;
+
+  /**
+   * How far ahead of the readings to aim, as a rotation to apply to them.
+   *
+   * The axis comes from the latest movement and the angle from a smoothed speed,
+   * so a single noisy reading cannot fling the view: it would take sustained
+   * motion to build the speed up. Capped at 10 degrees, which at any plausible
+   * latency is far more lead than is ever wanted, so a bad estimate degrades
+   * into a small fixed offset rather than a lurch.
+   */
+  const MAX_LEAD = THREE.MathUtils.degToRad(10);
+
   function followAim(dt) {
     if (!app.deviceOrientationControls || dt <= 0) return;
+
+    // Rotation the readings have applied since the last frame, in world terms.
+    aimStep.copy(aim.quaternion).multiply(previousAim.invert());
+    previousAim.copy(aim.quaternion);
+
+    const turned = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(aimStep.w), -1, 1));
+    if (turned > 1e-6) {
+      spinAxis.set(aimStep.x, aimStep.y, aimStep.z).normalize();
+      // Undo the sign the halved angle loses, so the axis keeps its direction.
+      if (aimStep.w < 0) spinAxis.negate();
+    }
+    // Filtered over roughly a tenth of a second, which is long enough to ignore
+    // a single outlier and short enough to react to a real pan starting.
+    spin += (turned / dt - spin) * Math.min(1, dt * 10);
+
+    target.copy(aim.quaternion);
+    const predict = config.orientationPrediction;
+    if (predict > 0 && spin > 0) {
+      const angle = Math.min(spin * predict, MAX_LEAD);
+      lead.setFromAxisAngle(spinAxis, angle);
+      target.premultiply(lead);
+    }
+
     const tau = config.orientationSmoothing;
     // Exponential approach expressed per second, so the feel does not change
-    // with frame rate. tau <= 0 means track the sensor exactly.
-    camera.quaternion.slerp(aim.quaternion, tau > 0 ? 1 - Math.exp(-dt / tau) : 1);
+    // with frame rate. tau <= 0 means track the target exactly.
+    camera.quaternion.slerp(target, tau > 0 ? 1 - Math.exp(-dt / tau) : 1);
   }
 
   renderer.setAnimationLoop(() => {

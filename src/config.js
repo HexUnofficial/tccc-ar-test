@@ -204,6 +204,25 @@ export const config = {
    */
   orientationSmoothing: num('smoothrot', 0.02),
 
+  /**
+   * How far ahead of the sensor readings to aim, in seconds. 0 is off.
+   *
+   * Everything about getting an orientation onto the screen is late: the reading
+   * describes where the phone was, and the frame drawn from it is presented a
+   * frame or two later again. Since the scene is pinned to compass north, that
+   * shows up as the whole world drifting along with a pan and settling
+   * afterwards — which reads as the aircraft following you rather than holding
+   * its anchor, even though it is fixed to a GPS position.
+   *
+   * Smoothing cannot fix this; it is the one thing that makes it worse. The
+   * remedy is to render where the phone is going: take the angular velocity of
+   * the readings and extrapolate. Off by default because the right value is
+   * whatever cancels a particular device's latency, which is a thing to feel on
+   * the phone rather than guess at here. Start at 0.05 and go up until the world
+   * stops dragging; too far and it will overshoot and spring back instead.
+   */
+  orientationPrediction: Math.max(0, num('predict', 0)),
+
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
 
