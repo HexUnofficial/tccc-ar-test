@@ -357,6 +357,34 @@ export const config = {
    * being unusable: that differentiated the readings to guess ahead, and
    * differentiating noise amplifies it.
    */
+  /**
+   * Render the world as the camera feed saw it, rather than as the sensor sees
+   * it now — ?feedmatch=1.
+   *
+   * The aircraft is drawn from a live orientation sensor over a background that
+   * is tens of milliseconds old, so while panning the aircraft leads the
+   * scenery. That is the "it follows the camera for a bit" report, and no
+   * rotation-filter setting removes it: the filter can only add lag, and the
+   * amount needed is a property of the phone's camera pipeline.
+   *
+   * With this on, requestVideoFrameCallback is asked how old each displayed
+   * frame is (expectedDisplayTime - captureTime, both on performance.now()'s
+   * clock) and the render is held back by exactly that. Supported in Safari
+   * since 15.4; a device that reports no capture time falls back to the
+   * shipped behaviour rather than to a guess.
+   *
+   * Off by default because it changes what every visitor sees, and the shipped
+   * build is approved.
+   */
+  feedMatch: flag('feedmatch', false),
+
+  /**
+   * Hold the render back by a fixed number of SECONDS instead of measuring —
+   * ?feedlag=0.08. Takes precedence over feedmatch, and is the way to check a
+   * suspected latency by hand, or to pin a known-good figure for a known phone.
+   */
+  feedLag: Math.max(0, num('feedlag', 0)),
+
   /*
    * Stays 'fixed'. This was briefly defaulted to 'euro' on the strength of the
    * AR.js #278 workaround (`smoothingFactor: 1` — turn the smoothing off,

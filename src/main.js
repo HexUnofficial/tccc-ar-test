@@ -246,6 +246,9 @@ async function startAR() {
       get anchor() { return anchor; },
       flightPath,
       flightConfig: config.flight,
+      /** Measured age of the displayed camera frame, ms, or null if unreported. */
+      get feedLatencyMs() { return measuredFeedLatency; },
+      get renderDelaySeconds() { return renderDelay(); },
       /** Scrub the circuit to a fixed time, for screenshots and tests. */
       setFlightTime(t) { flightTime = t; },
     };
@@ -390,8 +393,96 @@ async function startAR() {
   /** Filtered angular speed of the readings, radians per second. */
   let aimSpeed = 0;
 
+  /*
+   * ── MATCHING THE CAMERA FEED ──────────────────────────────────────────────
+   *
+   * The complaint this addresses is "the model follows the camera for a bit"
+   * while panning, and it survived every attempt to tune the rotation filter
+   * because the filter was never the whole cause.
+   *
+   * The aircraft is drawn from the orientation sensor, which is essentially
+   * live. The background it is drawn over came through the camera pipeline and
+   * is tens of milliseconds old. Panning at 60 deg/s, an 80 ms feed puts the
+   * background 4.8 degrees behind where the phone is actually pointing — so a
+   * perfectly tracked model LEADS the scenery it is supposed to be standing in.
+   * Removing smoothing makes that worse, not better, which is why the AR.js
+   * #278 workaround measured well against true heading and badly against a real
+   * feed.
+   *
+   * SLAM-based WebAR does not have this problem because it derives its pose
+   * from the same frame it draws over. We cannot do that with a raw <video>,
+   * but we can ask how old the frame being shown is:
+   * requestVideoFrameCallback reports `captureTime` for camera frames, so
+   * expectedDisplayTime - captureTime is the latency, measured on the actual
+   * device rather than guessed at from a desk.
+   *
+   * Off unless asked for with ?feedmatch=1, and it only ever reports a delay
+   * for `renderDelay` to consume — a phone that does not populate captureTime
+   * leaves it null and everything behaves exactly as before.
+   */
+  let measuredFeedLatency = null;
+  let feedWatchArmed = false;
+  function trackFeedLatency() {
+    const feed = video();
+    if (!feed?.requestVideoFrameCallback) return;
+    let smoothed = null;
+    const step = (_now, metadata) => {
+      const { captureTime, expectedDisplayTime } = metadata ?? {};
+      // Both are on the same clock as performance.now(). A phone that reports
+      // no capture time gives NaN here, which must not become a delay.
+      const latency = expectedDisplayTime - captureTime;
+      if (Number.isFinite(latency) && latency >= 0 && latency < 500) {
+        // Heavily smoothed: this is a property of the device, and a single
+        // frame that arrived late is not a reason to move the whole world.
+        smoothed = smoothed === null ? latency : smoothed + 0.05 * (latency - smoothed);
+        measuredFeedLatency = smoothed;
+      }
+      feed.requestVideoFrameCallback(step);
+    };
+    feed.requestVideoFrameCallback(step);
+  }
+
+  /**
+   * How far behind the sensor the camera should be rendered, in seconds.
+   *
+   * ?feedlag= states it outright. ?feedmatch=1 uses whatever the feed reports
+   * about itself, which is the point of the exercise. 0 is the shipped
+   * behaviour: draw from the newest reading and let the filter's own lag be
+   * whatever it is.
+   */
+  function renderDelay() {
+    if (config.feedLag > 0) return config.feedLag;
+    if (config.feedMatch && measuredFeedLatency !== null) return measuredFeedLatency / 1000;
+    return 0;
+  }
+
+  /*
+   * A short history of sensor orientations, so the camera can be pointed where
+   * the phone was pointing when the visible frame was captured. A ring long
+   * enough for any plausible feed latency and no longer.
+   */
+  const aimHistory = [];
+  function aimAsOf(delay) {
+    if (delay <= 0 || aimHistory.length === 0) return aim.quaternion;
+    const at = performance.now() - delay * 1000;
+    let chosen = aimHistory[0].q;
+    for (let i = aimHistory.length - 1; i >= 0; i -= 1) {
+      if (aimHistory[i].t <= at) { chosen = aimHistory[i].q; break; }
+    }
+    return chosen;
+  }
+
   function followAim(dt) {
     if (!app.deviceOrientationControls || dt <= 0) return;
+
+    /*
+     * Record first, then aim at the past. With no delay configured this is the
+     * newest entry, so the behaviour is bit-for-bit what it was.
+     */
+    const now = performance.now();
+    aimHistory.push({ t: now, q: aim.quaternion.clone() });
+    while (aimHistory.length > 2 && aimHistory[1].t < now - 600) aimHistory.shift();
+    const target = aimAsOf(renderDelay());
 
     if (config.rotationFilter === 'euro') {
       /*
@@ -400,25 +491,29 @@ async function startAR() {
        * prediction this cannot turn noise into movement. It can only decide how
        * hard to smooth.
        */
-      const turning = previousAim.angleTo(aim.quaternion) / dt;
-      previousAim.copy(aim.quaternion);
+      const turning = previousAim.angleTo(target) / dt;
+      previousAim.copy(target);
       aimSpeed += cutoffAlpha(SPEED_CUTOFF, dt) * (turning - aimSpeed);
 
       const cutoff = config.euroMinCutoff + config.euroBeta * aimSpeed;
-      camera.quaternion.slerp(aim.quaternion, cutoffAlpha(cutoff, dt));
+      camera.quaternion.slerp(target, cutoffAlpha(cutoff, dt));
       return;
     }
 
     const tau = config.orientationSmoothing;
     // Exponential approach expressed per second, so the feel does not change
     // with frame rate. tau <= 0 means track the sensor exactly.
-    camera.quaternion.slerp(aim.quaternion, tau > 0 ? 1 - Math.exp(-dt / tau) : 1);
+    camera.quaternion.slerp(target, tau > 0 ? 1 - Math.exp(-dt / tau) : 1);
   }
 
   renderer.setAnimationLoop(() => {
     const delta = Math.min(clock.getDelta(), 0.1);
 
     holdFieldOfView();
+
+    // The <video> is injected by LocAR after the session starts, so the watch
+    // is armed on the first frame it exists rather than at setup.
+    if (!feedWatchArmed && video()) { feedWatchArmed = true; trackFeedLatency(); }
 
     if (config.simulate) simulator?.update(delta);
     else {
