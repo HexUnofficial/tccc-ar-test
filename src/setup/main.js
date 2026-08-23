@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css';
 import QRCode from 'qrcode';
 import { createFlightPath } from '../flight.js';
 import { bearingBetween, destination, distanceBetween } from '../geo.js';
-import { FLIGHT, INSTALLATION, FLIGHT_HEADING } from '../location.js';
+import { FLIGHT, INSTALLATION, FLIGHT_HEADING, VIEW } from '../location.js';
 import { DEFAULT_MODEL, MODELS } from '../models.js';
 
 /**
@@ -58,6 +58,8 @@ const state = {
   size: num('size', FLIGHT.size ?? MODELS[DEFAULT_MODEL].size),
   /** Not sent to the AR page; only used to predict how big it will look. */
   viewer: num('viewer', 200),
+  /** Seconds of latency compensation. See VIEW.predict in location.js. */
+  predict: num('predict', VIEW.predict),
 };
 
 /**
@@ -161,6 +163,9 @@ function render() {
   el('v-speed').textContent = `${state.speed} m/s`;
   el('v-size').textContent = `${state.size} m`;
   el('v-viewer').textContent = `${state.viewer} m`;
+  el('v-predict').textContent = state.predict > 0
+    ? `${Math.round(state.predict * 1000)} ms ahead`
+    : 'off';
 
   const whole = apparentPixels(state.size, state.viewer);
   // The banner is roughly a fifth of the assembly's length in height, and it is
@@ -183,6 +188,7 @@ function render() {
     alt: String(state.altitude),
     speed: String(state.speed),
     size: String(state.size),
+    predict: String(state.predict),
   });
   /*
    * Deliberately no debug=1. These links are what gets scanned, previewed and
@@ -250,6 +256,10 @@ function render() {
     `  speed: ${state.speed},`,
     `  size: ${state.size},`,
     '};',
+    '',
+    'export const VIEW = {',
+    `  predict: ${state.predict},`,
+    '};',
   ].join('\n');
 }
 
@@ -275,7 +285,7 @@ el('length').addEventListener('input', (event) => {
 });
 
 for (const [id, key] of [['turn', 'turnRadius'], ['alt', 'altitude'], ['speed', 'speed'],
-  ['size', 'size'], ['viewer', 'viewer']]) {
+  ['size', 'size'], ['viewer', 'viewer'], ['predict', 'predict']]) {
   const input = el(id);
   input.value = String(state[key]);
   input.addEventListener('input', () => {

@@ -4,7 +4,7 @@
  * placement, scale and facing from the phone's address bar without a redeploy.
  */
 import {
-  DEFAULT_MODE, FLIGHT, FLIGHT_HEADING, INSTALLATION, LOCKED, RELATIVE_PLACEMENT,
+  DEFAULT_MODE, FLIGHT, FLIGHT_HEADING, INSTALLATION, LOCKED, RELATIVE_PLACEMENT, VIEW,
 } from './location.js';
 import { DEFAULT_MODEL, MODELS } from './models.js';
 
@@ -221,7 +221,7 @@ export const config = {
    * the phone rather than guess at here. Start at 0.05 and go up until the world
    * stops dragging; too far and it will overshoot and spring back instead.
    */
-  orientationPrediction: Math.max(0, num('predict', 0)),
+  orientationPrediction: Math.max(0, num('predict', VIEW.predict)),
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),

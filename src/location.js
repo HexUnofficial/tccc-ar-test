@@ -58,6 +58,24 @@ export const LOCKED = false;
  */
 export const FLIGHT_HEADING = 114.5;
 
+/**
+ * How far ahead of the sensors to render, in seconds. 0 is off.
+ *
+ * Everything about getting an orientation on screen is late: the reading says
+ * where the phone was, and the frame drawn from it appears a frame or two later
+ * again. Because the scene is pinned to compass north, that lateness shows up as
+ * the whole world dragging along with a pan — which reads as the aircraft
+ * following you rather than holding its anchor.
+ *
+ * The cure is to aim where the phone is going. The right value cancels a given
+ * device's latency, so it is set by feel on the phone (the picker has a slider,
+ * or ?predict=) and then pasted back here. Lead is this times how fast you are
+ * turning, so it costs nothing while you hold still.
+ */
+export const VIEW = {
+  predict: 0,
+};
+
 /** Relative-mode placement: how far away, and on what compass bearing. */
 export const RELATIVE_PLACEMENT = {
   distance: 20, // metres
