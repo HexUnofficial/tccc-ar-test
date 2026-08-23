@@ -51,6 +51,7 @@ async function open(query, sabotage) {
     measured: window.__ar.feedLatencyMs,
     delayMs: window.__ar.renderDelaySeconds * 1000,
     filter: window.__ar.activeRotationFilter,
+    flow: window.__ar.flowLatencySeconds,
     rendering: window.__ar.renderer.info.render.triangles > 0,
   }));
   return { ctx, state, errors };
@@ -108,9 +109,11 @@ const BASE_Q = '?sim=0&mode=relative&distance=200&bearing=90';
       });
     };
   });
-  check('no capture time reported -> nothing measured', state.measured === null, `${state.measured}`);
-  check('no capture time reported -> no delay applied', state.delayMs === 0, `${state.delayMs} ms`);
-  check('no capture time reported -> plain filter, as shipped', state.filter === 'fixed', `${state.filter}`);
+  check('no capture time reported -> nothing measured from metadata', state.measured === null, `${state.measured}`);
+  // Not zero any more: with no measurement available the founded fallback is
+  // applied, because applying nothing leaves the WHOLE feed latency
+  // uncancelled while a 90 ms estimate leaves only the difference.
+  check('no capture time reported -> falls back to an estimate', state.delayMs > 0, `${state.delayMs.toFixed(1)} ms`);
   check('no capture time reported -> still renders', state.rendering);
   check('no capture time reported -> quiet', errors.length === 0, errors[0]);
   await ctx.close();
@@ -121,8 +124,7 @@ const BASE_Q = '?sim=0&mode=relative&distance=200&bearing=90';
   const { ctx, state, errors } = await open(`${BASE_Q}&feedmatch=1`, () => {
     delete HTMLVideoElement.prototype.requestVideoFrameCallback;
   });
-  check('no rVFC -> no delay applied', state.delayMs === 0, `${state.delayMs} ms`);
-  check('no rVFC -> plain filter, as shipped', state.filter === 'fixed', `${state.filter}`);
+  check('no rVFC -> falls back to an estimate', state.delayMs > 0, `${state.delayMs.toFixed(1)} ms`);
   check('no rVFC -> still renders', state.rendering);
   check('no rVFC -> quiet', errors.length === 0, errors[0]);
   await ctx.close();
@@ -144,8 +146,23 @@ const BASE_Q = '?sim=0&mode=relative&distance=200&bearing=90';
       });
     };
   });
-  check('an absurd latency is rejected, not clamped', state.delayMs === 0, `${state.delayMs} ms`);
-  check('an absurd latency -> plain filter, as shipped', state.filter === 'fixed', `${state.filter}`);
+  check('an absurd latency is rejected, not trusted', Math.abs(state.delayMs - 90) < 60, `${state.delayMs.toFixed(1)} ms`);
+  await ctx.close();
+}
+
+/*
+ * --- the fallback can be refused ---
+ *
+ * ?feedfallback=0 with nothing measurable is the pre-feed-matching behaviour
+ * exactly, for anyone who would rather have the known artefact than an
+ * estimate.
+ */
+{
+  const { ctx, state } = await open(`${BASE_Q}&feedfallback=0`, () => {
+    delete HTMLVideoElement.prototype.requestVideoFrameCallback;
+  });
+  check('feedfallback=0 with nothing measurable applies no delay', state.delayMs === 0, `${state.delayMs} ms`);
+  check('and falls back to the plain filter', state.filter === 'fixed', `${state.filter}`);
   await ctx.close();
 }
 

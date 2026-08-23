@@ -124,6 +124,16 @@ console.log(`\n──── map picker ────`);
   if (code !== 0) failed.push('map picker');
 }
 
+// The feed-age estimator's arithmetic. No browser, no server — and first,
+// because a wrong lag here is applied as a delay and looks like a tracking bug.
+console.log('');
+console.log('──── measuring the feed\'s age ────');
+{
+  const child = run('node', ['tools/feedlag-test.mjs']);
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push("measuring the feed's age");
+}
+
 // The delivered GLB itself, before anything is served: a WebP texture or an
 // opaque material marked BLEND makes every later visual failure a red herring.
 console.log('');
@@ -132,6 +142,18 @@ console.log('──── the delivered model ────');
   const child = run('node', ['tools/model-test.mjs']);
   const [code] = await once(child, 'exit');
   if (code !== 0) failed.push('the delivered model');
+}
+
+// The same estimator against a real <video>, using a synthetic camera whose
+// latency is known. This is the half the pure-function test cannot reach.
+console.log('');
+console.log('──── measuring it from the pixels ────');
+{
+  const child = run('node', ['tools/feedflow-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('measuring it from the pixels');
 }
 
 // Feed matching must degrade to the shipped behaviour on browsers that report

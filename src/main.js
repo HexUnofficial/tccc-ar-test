@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as LocAR from 'locar';
 import { config } from './config.js';
+import { createFeedLagMeter } from './feedlag.js';
 import { loadModel } from './model.js';
 import { createFlightPath } from './flight.js';
 import { createHud, formatDistance } from './hud.js';
@@ -250,6 +251,11 @@ async function startAR() {
       get feedLatencyMs() { return measuredFeedLatency; },
       get renderDelaySeconds() { return renderDelay(); },
       get activeRotationFilter() { return activeFilter; },
+      /** Feed age measured from the pixels, seconds, or null before it locks. */
+      get flowLatencySeconds() { return flowMeter?.latencySeconds ?? null; },
+      get flowCorrelation() { return flowMeter?.correlation ?? 0; },
+      /** Exposed so the estimator can be driven against a synthetic camera. */
+      createFeedLagMeter,
       /** Scrub the circuit to a fixed time, for screenshots and tests. */
       setFlightTime(t) { flightTime = t; },
     };
@@ -445,18 +451,59 @@ async function startAR() {
     feed.requestVideoFrameCallback(step);
   }
 
+  /*
+   * Measuring the feed's age from the pixels, as well as asking for it.
+   *
+   * `captureTime` above is free when a browser reports it, but nothing requires
+   * one to, and a fix that silently does nothing on the single handset that
+   * matters is not a fix. This second route needs no cooperation: it correlates
+   * how far the image slides against how fast the sensor says the phone is
+   * turning, and the lag between those two signals IS the feed's age. It also
+   * measures the whole chain end to end, including whatever the display adds,
+   * where captureTime only covers the capture pipeline.
+   *
+   * Preferred over captureTime when it has locked on, for that reason.
+   */
+  let flowMeter = null;
+  const yawOf = (() => {
+    const forward = new THREE.Vector3();
+    return (quaternion) => {
+      forward.set(0, 0, -1).applyQuaternion(quaternion);
+      return Math.atan2(forward.x, -forward.z) * 180 / Math.PI;
+    };
+  })();
+  let previousYaw = null;
+
+  function updateFlowMeter(dt) {
+    if (!config.feedMatch) return;
+    const feed = video();
+    if (!feed) return;
+    if (!flowMeter) flowMeter = createFeedLagMeter({ video: feed });
+    const yaw = yawOf(aim.quaternion);
+    if (previousYaw !== null && dt > 0) {
+      let delta = yaw - previousYaw;
+      while (delta > 180) delta -= 360;
+      while (delta < -180) delta += 360;
+      flowMeter.update(dt, delta / dt);
+    }
+    previousYaw = yaw;
+  }
+
   /**
    * How far behind the sensor the camera should be rendered, in seconds.
    *
-   * ?feedlag= states it outright. ?feedmatch=1 uses whatever the feed reports
-   * about itself, which is the point of the exercise. 0 is the shipped
-   * behaviour: draw from the newest reading and let the filter's own lag be
-   * whatever it is.
+   * ?feedlag= states it outright and wins, for pinning a known figure or
+   * checking a suspected one by hand. Otherwise the measurements are preferred
+   * in order of how much they actually cover — pixels over metadata — and the
+   * fallback is used only when neither is available at all.
    */
   function renderDelay() {
     if (config.feedLag > 0) return config.feedLag;
-    if (config.feedMatch && measuredFeedLatency !== null) return measuredFeedLatency / 1000;
-    return 0;
+    if (!config.feedMatch) return 0;
+    const fromPixels = flowMeter?.latencySeconds;
+    if (fromPixels !== null && fromPixels !== undefined) return fromPixels;
+    if (measuredFeedLatency !== null) return measuredFeedLatency / 1000;
+    return config.feedFallback;
   }
 
   /*
@@ -530,6 +577,7 @@ async function startAR() {
     // The <video> is injected by LocAR after the session starts, so the watch
     // is armed on the first frame it exists rather than at setup.
     if (!feedWatchArmed && video()) { feedWatchArmed = true; trackFeedLatency(); }
+    if (!config.simulate) updateFlowMeter(delta);
 
     if (config.simulate) simulator?.update(delta);
     else {

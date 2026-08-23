@@ -387,6 +387,25 @@ export const config = {
    */
   feedLag: Math.max(0, num('feedlag', 0)),
 
+  /**
+   * What to hold the render back by when the feed's age cannot be measured at
+   * all — ?feedfallback=0.09, in SECONDS. ?feedfallback=0 restores the old
+   * behaviour of applying nothing.
+   *
+   * Measuring is always preferred, and there are two independent ways to do it
+   * (see `feedMatch`). But a phone that defeats both should not be left with
+   * the full error, because the error is not symmetric around zero: applying
+   * nothing leaves the whole feed latency uncancelled, while applying roughly
+   * the right amount leaves only the difference. At 60 deg/s a 90 ms guess
+   * against a true 60-130 ms costs at most about 2 degrees of residual slide,
+   * where applying nothing costs 3.5 to 8.
+   *
+   * 90 ms sits in the middle of the range measured for phone camera previews.
+   * It is a guess, and labelled as one — but it is a guess that is closer than
+   * zero for every plausible device.
+   */
+  feedFallback: Math.max(0, num('feedfallback', 0.09)),
+
   /*
    * 'auto': the 1€ filter when the camera feed's delay is being cancelled, the
    * plain time constant when it is not. ?filter=fixed or ?filter=euro forces
