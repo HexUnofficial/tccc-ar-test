@@ -242,6 +242,39 @@ export const config = {
    */
   ui: params.get('ui') ?? 'none',
 
+  /**
+   * Vertical field of view of the rendered camera, in degrees. 0 keeps LocAR's.
+   *
+   * This is the one thing that can make content drift with a pan no matter how
+   * good the tracking is, because it is not a timing error at all — it is a
+   * scale error between angles and pixels. If the render is wider than the
+   * lens, a real rotation of N degrees moves the world across fewer pixels than
+   * the camera feed moves behind it, so everything drags along with the pan and
+   * settles when you stop. Exactly what latency looks like, and immune to
+   * every latency fix.
+   *
+   * LocAR builds its camera as `PerspectiveCamera(hFov / aspect, aspect, …)`.
+   * Three's first argument is the VERTICAL fov, and dividing is not the
+   * conversion — it is `2·atan(tan(hFov/2) / aspect)`. With hFov 80 on a
+   * 414×896 viewport that yields 173.1° vertical, about 165° horizontal: a
+   * fisheye, against a phone lens of roughly 65–70°.
+   *
+   * What it should be depends on the lens and on the crop, since the feed is
+   * drawn with `object-fit: cover`. For a 16:9 feed in portrait only 26% of its
+   * width survives, giving roughly 42–45° vertical; if iOS hands over an
+   * already-portrait feed it is nearer 100°. So the honest answer is a number
+   * you null by eye: set it, pan, and see whether the model still slides
+   * against the background.
+   *
+   *   ?vfov=50   a reasonable first guess
+   *   ?vfov=0    LocAR's own value, for comparison
+   *
+   * Beware it also changes apparent size — narrower fov magnifies. At 173° the
+   * aircraft renders about a third of the size it should, which is worth
+   * remembering given `size` is currently set to 400 m.
+   */
+  verticalFov: Math.max(0, num('vfov', 0)),
+
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),
 };

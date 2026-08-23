@@ -105,6 +105,21 @@ async function startAR() {
 
   const { scene, camera, renderer } = app;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  /**
+   * Hold the camera at the field of view we asked for.
+   *
+   * Re-applied every frame rather than once, because LocAR recomputes
+   * `fov = hFov / aspect` on every resize — so setting it at startup survives
+   * until the first orientation change or toolbar reflow and then silently
+   * reverts. Comparing a float per frame is cheaper than the bug.
+   */
+  function holdFieldOfView() {
+    if (config.verticalFov <= 0 || camera.fov === config.verticalFov) return;
+    camera.fov = config.verticalFov;
+    camera.updateProjectionMatrix();
+  }
+  holdFieldOfView();
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x556677, 2.2));
@@ -336,6 +351,8 @@ async function startAR() {
 
   renderer.setAnimationLoop(() => {
     const delta = Math.min(clock.getDelta(), 0.1);
+
+    holdFieldOfView();
 
     if (config.simulate) simulator?.update(delta);
     else {
