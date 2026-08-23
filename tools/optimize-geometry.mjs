@@ -117,26 +117,58 @@ function hasAlphaChannel(image, mimeType) {
   return colourType === 4 || colourType === 6;
 }
 
+/*
+ * The shell renders solid, glazing included.
+ *
+ * The cabin glass came in at 0.04 opacity and a light lens at 0.29, so you
+ * looked straight through the fuselage at the seats and the far side, and the
+ * cabin read as a hole in the aircraft — "missing parts" from outside, which is
+ * how this was reported.
+ *
+ * A hollow interior is not worth defending: this thing is seen from a few
+ * hundred metres away with a banner behind it, and nobody is inspecting the
+ * upholstery. Forcing the glazing opaque turns the windscreen into a dark
+ * panel, which is what a window looks like from outside at that range anyway.
+ *
+ * KEEP_TRANSPARENCY=1 leaves genuinely see-through materials alone, for a model
+ * where the inside IS the point.
+ */
+const SOLID_SHELL = process.env.KEEP_TRANSPARENCY !== '1';
+
 function fixAlphaModes(document) {
   const fixed = [];
+  const solidified = [];
   const kept = [];
   for (const material of document.getRoot().listMaterials()) {
     if (material.getAlphaMode() !== 'BLEND') continue;
     const name = material.getName();
-    if (material.getAlpha() < 1) { kept.push(`${name} (opacity ${material.getAlpha().toFixed(2)})`); continue; }
+
+    if (material.getAlpha() < 1) {
+      if (!SOLID_SHELL) { kept.push(`${name} (opacity ${material.getAlpha().toFixed(2)})`); continue; }
+      solidified.push(`${name} (was ${material.getAlpha().toFixed(2)})`);
+      material.setAlpha(1);
+      material.setAlphaMode('OPAQUE');
+      continue;
+    }
+
     const texture = material.getBaseColorTexture();
     if (texture && hasAlphaChannel(texture.getImage(), texture.getMimeType())) {
+      // Left blended even under SOLID_SHELL: forcing a cutout opaque fills in
+      // the shape the alpha was carving out, which is a worse artefact than
+      // anything it would fix.
       kept.push(`${name} (texture carries alpha)`);
       continue;
     }
+
     material.setAlphaMode('OPAQUE');
     fixed.push(name);
   }
   if (fixed.length) {
     console.log(`  alpha       ${fixed.length} opaque material(s) were exported as BLEND; set to OPAQUE`);
   }
+  for (const s of solidified) console.log(`              made solid: ${s}`);
   for (const k of kept) console.log(`              left blended: ${k}`);
-  return fixed.length;
+  return fixed.length + solidified.length;
 }
 
 fixAlphaModes(doc);

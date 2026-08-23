@@ -84,6 +84,21 @@ const check = (label, ok, detail) => {
     wrong.length ? wrong.join(', ') : `${legitimate.length} genuinely blended`);
 }
 
+/*
+ * --- the shell renders solid ---
+ *
+ * A separate assertion from the one above, because it encodes a decision
+ * rather than a correctness rule: glazing is forced opaque so the aircraft
+ * cannot be seen through. At a few hundred metres a dark panel reads as a
+ * window, while 0.04 opacity glass reads as a hole in the fuselage.
+ */
+{
+  const blended = root.listMaterials().filter((m) => m.getAlphaMode() === 'BLEND');
+  check('nothing is see-through', blended.length === 0,
+    blended.length ? blended.map((m) => `${m.getName()} @ ${m.getAlpha().toFixed(2)}`).join(', ')
+      : 'every material opaque');
+}
+
 // --- it has to move ---
 {
   const animations = root.listAnimations();
