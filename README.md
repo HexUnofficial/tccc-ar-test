@@ -1,12 +1,130 @@
 # tccc-ar-test
 
-GPS-anchored AR for the mobile web. Points a phone's camera at the world, works
+Geo-anchored AR for the mobile web. Points a phone's camera at the world, works
 out where you are and which way you're facing, and holds a 3D model at a fixed
-real-world coordinate. Runs in mobile Safari and Android Chrome — no app, no
-app store, no WebXR requirement.
+real-world coordinate — tracked by SLAM, so the model stays put while you move
+rather than being dragged around by your own sensors. Runs in mobile Safari and
+Android Chrome: no app, no app store, no WebXR requirement.
 
-Built on [LocAR.js](https://github.com/AR-js-org/locar.js) (the successor to
-AR.js's location-based mode) and three.js.
+Built on **[8th Wall Web](https://www.8thwall.com/docs/web/)** (XR8) and
+three.js. The previous engine, [LocAR.js](https://github.com/AR-js-org/locar.js),
+is still in the tree and still reachable with `?engine=locar` — see
+[Why the port](#why-the-port-world-position-vs-camera-position).
+
+## Why the port: world position vs camera position
+
+The complaint that prompted this branch:
+
+> We need to find a way to separate between world position and camera position.
+> If the plane is unable to fly past us without it being knocked off course by
+> the camera movement, that to me feels like a showstopper.
+
+It was a showstopper, and it was not a bug. It was the architecture.
+
+**The old engine had one frame of reference and wrote both things into it.** The
+camera's rotation came from the compass, its position came from GPS, and the
+aircraft's lat/lon was converted into that same space. So every error in either
+sensor arrived as *world* motion:
+
+| what happened | what you saw |
+| --- | --- |
+| compass lag while panning | the scene slid, then settled — "it follows the camera" |
+| a GPS fix landing 8 m off | the ground shoved sideways while you stood still |
+| the aircraft flying past you | indistinguishable from the aircraft being pushed off course |
+
+That last row is the showstopper, and no filter fixes it, because the
+information needed to tell the two cases apart was never in the signals. GPS
+cannot see a two-metre sidestep and a compass cannot tell "I turned" from "the
+world turned". The record of trying is still in
+[src/config.js](src/config.js) — a 1€ filter, a feed-latency estimator, three
+tables of measurements — and all of it was nulling one error against another.
+
+**8th Wall changes what is available.** XR8's world tracking derives a 6DoF pose
+from the camera frames themselves, in a local world frame that stays put. That
+gives two genuinely independent quantities for the first time:
+
+```
+camera pose    owned by SLAM, written every frame, never touched by us
+world anchor   owned by src/xr/georef.js, in metres, in that same frame
+```
+
+The aircraft's position is computed once from its lat/lon and then lives in the
+world frame as a plain number. Panning cannot move it, because panning only
+changes the camera. Walking cannot move it either — walking moves the camera
+through a world that is standing still, which is what parallax *is*. **The
+aircraft can fly past you because its path is expressed in a frame you are not
+part of.**
+
+[src/xr/georef.js](src/xr/georef.js) is the whole of it: a translation (which
+world point a given lat/lon is) and a yaw (which way is north). Six numbers,
+resolved on the first good GPS fix and then left alone.
+
+### The claim is a test, not a feeling
+
+```bash
+npm run test:parallax
+```
+
+Runs against `?sim=1`, so it needs no app key and no phone:
+
+| check | result |
+| --- | --- |
+| a full pan, 72 steps, plus a pitch sweep | aircraft world position moves **0.0000 mm** |
+| a 10 m sidestep | world position **0.0000 mm**, screen position **0.138 NDC** |
+| one lap with the camera thrown around vs. left still | trajectories differ by **0.0000 mm** |
+| 15 m of GPS jitter, `geolock=once` | anchor moves **0.0000 mm** |
+| the same jitter with `geolock=follow` | anchor moves **14.2 m** — so the stillness above is the georeference holding, not the fixes failing to arrive |
+
+`npm run test:georef` checks the placement maths that the above says nothing
+about — the yaw convention, round trips, and the sign of the correction. Its
+last case starts a georeference **40° wrong**, as an uncalibrated Android
+magnetometer would, walks 60 m, and recovers the true yaw to **0.00°**. See
+[walk alignment](#if-you-do-not-trust-the-compass).
+
+### What the port deleted
+
+Roughly 300 lines, and it matters that nobody re-adds them:
+
+| gone | why |
+| --- | --- |
+| rotation filters, `?smoothrot=`, `?beta=`, `?fcmin=`, `?filter=` | smoothed a compass the render no longer reads |
+| `?feedmatch=`, `?feedlag=`, the aim-history ring | lined a live sensor up against a delayed video frame; SLAM derives the pose *from* that frame, so they cannot disagree |
+| `?lens=`, `?vfov=`, `holdFieldOfView` | XR8 supplies real camera intrinsics; the angles-to-pixels scale is measured, not nulled by eye |
+| `?avg=`, `?smooth=`, `?mindist=` | hid the fact that GPS was steering the camera |
+| [src/projection.js](src/projection.js) | undid LocAR's Mercator; georef's tangent plane is metric to begin with |
+
+Those query parameters still work under `?engine=locar`. Under the default
+engine they are ignored, which is deliberate — they describe a machine that is
+no longer there.
+
+## Getting it running
+
+XR8 is a hosted script keyed to your 8th Wall account and locked to the domains
+you authorise, so it cannot be bundled or vendored. **This branch does not run
+at all without an app key.**
+
+1. Create a project at [8thwall.com](https://www.8thwall.com/) and copy its app
+   key from the dashboard.
+2. Add the domains you will serve from to the project's **authorised domains** —
+   your Netlify domain, plus any deploy-preview pattern you use. XR8 refuses to
+   start on an unlisted origin, with a message the page surfaces on the gate.
+3. Put the key in the build environment:
+
+```bash
+cp .env.example .env      # then edit it
+```
+
+```
+VITE_XR8_APP_KEY=your_key_here
+```
+
+On Netlify that is **Site settings → Environment variables**, same name. The key
+is a public client identifier restricted by domain, not a secret, so `?appkey=`
+also works for a one-off test.
+
+Without a key the gate says so and stays usable, rather than white-screening —
+`npm run test:xr8` covers that, because a misconfigured deploy discovered in a
+field is expensive.
 
 ## Quick start
 
@@ -21,9 +139,20 @@ Open the **https** URL it prints. On a laptop, add `?sim=1`:
 https://localhost:5173/?sim=1
 ```
 
-That fakes the GPS, uses your laptop webcam for the passthrough feed, and gives
-you **drag to look around** and **WASD to walk**. Enough to check placement,
-scale, framing and animation without leaving your desk.
+That skips XR8 entirely — no app key needed — uses your laptop webcam for the
+passthrough feed, and gives you **drag to look around**, **WASD to walk** and
+**Q/E for height**. Hold shift to move faster.
+
+The simulator now models the thing 8th Wall actually provides: six degrees of
+freedom in a world frame that stays put. The camera is translated directly in
+metres and GPS is synthesised *from* where it ends up, which is the same
+direction of causation as the device. The old simulator could not do that — it
+moved you by feeding fake GPS in, because GPS was the only position input the
+engine had, so the one behaviour you most needed to check (walk past something,
+watch it hold still) was the one it could not reproduce.
+
+`?simnoise=15` adds 15 m of random error to each synthetic fix, which is how to
+watch `geolock` do its job. `?engine=locar` runs the old engine for comparison.
 
 ## Testing on an actual phone
 
@@ -175,17 +304,39 @@ address bar instead of redeploying.
 | `yaw` | `0` | Degrees of extra rotation, if the model faces the wrong way |
 | `faceuser` | `1` | `0` to stop it turning to face you |
 | `minacc` | `100` | Ignore GPS fixes worse than this many metres |
-| `mindist` | `1` | Metres you must move before the scene re-projects |
-| `avg` | `3` | Fixes averaged together to suppress GPS wander |
-| `smoothrot` | `0.4` | Rotation smoothing, 0–1. Higher is steadier but lags |
-| `smooth` | `1.2` | GPS intervals spent catching up to each fix. `0` snaps instantly |
 | `farwarn` | `200` | Metres from the anchor beyond which the HUD warns you |
 | `sim` | `0` | `1` for desktop simulation |
 | `ui` | `minimal` | `minimal` (arrow + warnings), `none` (arrow only), `debug` (everything) |
 | `debug` | — | Shorthand for `?ui=debug` |
 | `fullscreen` | `1` | `0` to stay windowed |
 
-Example: `?mode=relative&distance=10&bearing=270&height=3`
+### The 8th Wall engine
+
+| Parameter | Default | Purpose |
+|---|---|---|
+| `appkey` | from `VITE_XR8_APP_KEY` | One-off override of the 8th Wall app key |
+| `yaw0` | — | State the world frame's true bearing outright; skips the compass |
+| `geolock` | `once` | `once`, `slow` or `follow` — what later GPS fixes may do |
+| `corrate` | `0.5` | Metres per second of positional correction under `slow` |
+| `alignwalk` | `0` | `1` to solve the yaw from GPS-vs-SLAM displacement as you walk |
+| `walkbase` | `8` | Metres of travel before a walk-alignment sample counts |
+| `headingsamples` | `20` | Compass samples averaged before the world is placed |
+| `worldtracking` | `1` | `0` for rotation only, no SLAM — the escape hatch |
+| `scale` | `absolute` | `responsive` to scale content to the screen instead |
+| `near`, `far` | `0.01`, `8000` | Depth range, in metres. `far` has to clear the circuit |
+| `standoff` | `300` | Simulator: metres from the anchor to stand |
+| `simyaw` | `0` | Simulator: yaw to give the fake world frame |
+| `simnoise` | `0` | Simulator: metres of random error per synthetic fix |
+| `engine` | `8thwall` | `locar` for the old engine |
+
+### Retired with the port
+
+These do nothing under the default engine, and still work under
+`?engine=locar`: `mindist`, `avg`, `smooth`, `smoothrot`, `filter`, `fcmin`,
+`beta`, `feedmatch`, `feedlag`, `lens`, `vfov`. See
+[What the port deleted](#what-the-port-deleted).
+
+Example: `?mode=relative&distance=10&bearing=270&yaw0=114.5`
 
 ## The model
 
@@ -328,10 +479,37 @@ npm test
 ```
 
 Builds, serves, and drives the real page in headless Chromium with a synthetic
-camera and a mocked GPS fix, across six placements plus four behavioural tests. It checks that the model
-downloads, the camera stream starts, the GPS fix lands the model at the right
-distance and bearing, the model actually rasterises at the correct physical
-size, and the direction arrow appears and hides when it should.
+camera and a mocked GPS fix. It checks that the model downloads, the camera
+stream starts, the GPS fix lands the model at the right distance and bearing, the
+model actually rasterises at the correct physical size, and the direction arrow
+appears and hides when it should.
+
+**Three suites cover the port itself, and they run first**, because a failure in
+any of them makes the visual tests meaningless:
+
+- **[tools/georef-test.mjs](tools/georef-test.mjs)** — the placement maths, with
+  no browser at all. The yaw convention (including the `yaw 90` case that catches
+  a sign flip, which on site would put the aircraft in the wrong quadrant of an
+  empty sky with nothing to line it up against), round trips across 105
+  yaw/bearing/range combinations, the sign of a `geolock` correction, and walk
+  alignment recovering a 40° compass error to 0.00°. It runs before the build and
+  aborts everything if it fails.
+- **[tools/parallax-test.mjs](tools/parallax-test.mjs)** — the showstopper, as a
+  test. Panning, walking and GPS jitter must not move the aircraft; walking must
+  still change where it appears. See
+  [The claim is a test](#the-claim-is-a-test-not-a-feeling) for the numbers. The
+  fifth case deliberately makes the world move, with `geolock=follow`, so that
+  the stillness in the fourth is evidence of the georeference holding rather than
+  of the fixes never arriving — a test that only ever asserts "nothing changed"
+  passes just as well when nothing is running.
+- **[tools/xr8-test.mjs](tools/xr8-test.mjs)** — the two parts of the 8th Wall
+  path reachable without an app key: that widening the depth range keeps a 2.5 km
+  circuit inside the frustum without disturbing the focal terms, and that a build
+  deployed with no key says so on the gate instead of white-screening.
+
+Everything below this line predates the port and drives the old engine via
+`?engine=locar`. It is kept because that engine is kept for on-site comparison;
+several of them measure machinery the 8th Wall build does not have.
 
 The two movement tests are the ones that matter most for feel, and each catches
 something the static placements can't:
@@ -391,9 +569,16 @@ That one uses the full Chromium build, which composites the (synthetic) camera
 feed into the image; the headless shell used by `npm test` does not, so frames
 captured there always look black.
 
-What none of it can tell you: compass accuracy, magnetometer drift, real GPS
-jitter, sunlight legibility, or thermal throttling. Those need a phone and a
-pavement.
+What none of it can tell you, and this list got longer with the port: **XR8's
+actual tracking quality**, whether absolute scale puts the ground where it should
+be, whether tracking holds when the phone tips up past the skyline at open sky,
+compass accuracy, magnetometer drift, real GPS jitter, sunlight legibility, or
+thermal throttling. The app key does not work from a test runner on localhost, so
+everything about the pose itself needs a phone and a pavement.
+
+The one thing the suite *can* now prove without a device is the thing that was
+in dispute: that the world and the camera are separable. That is not a matter of
+opinion any more.
 
 ## Troubleshooting
 
@@ -480,6 +665,13 @@ PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 That last one matters: Playwright is a devDependency used only by the tests, and
 its install step would otherwise pull ~150 MB of browsers into every deploy.
 
+**One requirement Netlify does not satisfy by default:** `VITE_XR8_APP_KEY` has
+to be set under Site settings → Environment variables, and the Netlify domain
+(plus any deploy-preview pattern) has to be listed in the 8th Wall project's
+authorised domains. A deploy without either produces a page that loads, shows
+the gate, and then tells the user it has no app key — which is the correct
+failure, but still a failure.
+
 Two hard requirements, both of which Netlify satisfies by default:
 
 - **HTTPS.** Camera, geolocation and motion sensors are all refused on plain
@@ -492,7 +684,131 @@ The build is about 210 KB of gzipped JavaScript plus a 205 KB aircraft — small
 enough to load over mobile data at the riverbank, which is the only test that
 counts.
 
+## Placing the world without trusting the compass
+
+The georeference needs one thing the maths cannot derive: which way XR8's world
+frame is pointing. There are three ways to supply it, in increasing order of how
+much you should trust them.
+
+### The compass (default)
+
+Read once, at the moment of the first good GPS fix, as a circular mean of ~20
+samples rather than whichever event landed on the frame the user tapped. Then
+the listener is **stopped** and never consulted again — so compass *drift*,
+which was the old engine's worst enemy, cannot affect anything.
+
+Samples where the lens is within 20° of vertical are discarded: a phone pointed
+at the sky has no meaningful heading, and letting those into the mean is how you
+get a confident wrong answer.
+
+### Stated outright (what to deploy)
+
+```
+?yaw0=114.5
+```
+
+Skips the compass entirely. This is the setup ritual for a real installation:
+stand on the mark, point the phone down the run, tap. The compass is the weakest
+sensor in the stack — iOS gives true north, Android can be tens of degrees out
+until it has been waved in a figure of eight — and this is the way to not depend
+on it. Note that `yaw0` is a *placement* parameter, so `LOCKED` in
+[src/location.js](src/location.js) suppresses it along with the others.
+
+### If you do not trust the compass
+
+```
+?alignwalk=1
+```
+
+Solves for the yaw from the two sensors you already have. Walk twenty metres:
+GPS says which way you went in true bearings, SLAM says which way you went in
+world axes, and one number relates them. It is a least-squares fit over every
+pair with a long enough baseline, so it *sharpens* as you walk rather than
+drifting as a compass does — `npm run test:georef` starts one 40° wrong and
+recovers it to 0.00° over 60 m.
+
+Off by default, because a spectator watching an aircraft over a river does not
+walk and a stationary phone contributes nothing but GPS noise. Turn it on during
+setup, walk a straight line, read the yaw off the HUD's **Georef** row, then
+hard-code it with `?yaw0=`.
+
+## What GPS is for now
+
+Almost nothing, and that is the point.
+
+```
+?geolock=once     (default) place the world on the first good fix, then ignore
+?geolock=slow     correct the world's position at ?corrate= m/s, default 0.5
+?geolock=follow   correct it immediately — for diagnosis, not for use
+```
+
+`once` is not laziness. GPS is worth ±5–20 m; at the kilometre this installation
+works over, 20 m is 1.1° of arc, which is invisible. SLAM's drift over a few
+minutes standing still is centimetres. Correcting a good pose with a worse
+measurement can only make it worse — and the correction itself is visible motion
+where there should be none.
+
+`slow` earns its place somewhere you walk a long way, where SLAM drift
+eventually exceeds GPS error. Not this site. When it is on, corrections move the
+**world**, never the camera; 0.5 m/s against a subject a kilometre off is
+0.03°/s.
+
+Later fixes are still *measured* under `once` — the HUD's **Georef** row shows
+the world yaw and the metres of disagreement between GPS and SLAM. A few metres
+is normal and ignored. A few hundred means the initial lock was wrong.
+
+## Where tracking can fail
+
+This is the honest risk of the port, and it is specific to this installation: an
+aircraft over a river means a phone pointed at **sky and water**, and SLAM needs
+visual texture to hold a pose. Point a phone at featureless sky and XR8 reports
+`LIMITED` tracking; the world will drift until it gets something to hold on to.
+
+What the build does about it:
+
+- The tracking status is surfaced, not swallowed. `reality.trackingstatus` drives
+  the HUD's **Tracking** row, and a status other than `NORMAL` puts a banner up
+  asking for a glance at the skyline or the ground.
+- `?worldtracking=0` drops to rotation only — the old engine's situation minus
+  its compass problems — as an escape hatch if a site turns out to be hopeless.
+
+What to check on site, because no test here can: that tracking holds through the
+poses people actually adopt while following an aircraft, including the moment
+they tip the phone up past the skyline. Keeping some bank, bridge or building in
+the bottom of frame is usually enough, and is worth saying in the brief for where
+people are asked to stand.
+
 ## Known constraints
+
+- **An 8th Wall app key is required**, and the domain must be authorised in the
+  dashboard. There is no offline or self-hosted XR8. `?sim=1` is the only way to
+  run without one, and it is a stand-in, not the engine.
+- **SLAM needs visual texture.** Sky and open water are the failure case, and
+  this installation points a phone at both. See
+  [Where tracking can fail](#where-tracking-can-fail).
+- **Absolute scale estimates your height** to place the ground plane. It is good
+  to a few percent, which at 50 m of aircraft altitude is centimetres of error
+  in the wrong direction — irrelevant here, but it is an estimate, not a
+  measurement.
+- **The georeference is only as good as its yaw.** One degree of yaw error is
+  17 m of lateral offset at a kilometre. GPS error barely matters at this range;
+  the compass is what to worry about, which is why `?yaw0=` exists and why
+  `?alignwalk=1` exists as a way to measure it instead.
+- **SLAM drifts if you walk far.** Metres over hundreds of metres of walking, and
+  it accumulates rather than wandering. `?geolock=slow` is the answer where that
+  applies; for a spectator standing still it does not.
+- **iOS needs a tap and an explicit grant** for motion sensors — that is what the
+  Start AR gate is for, and the request has to happen inside the user gesture.
+  XR8 also needs the camera grant, which it requests itself on `XR8.run`.
+- **GPS is still bounded by consumer GPS**, ±5-20 m, and it still decides where
+  the world is placed *initially*. What has changed is that it no longer decides
+  where the world is from moment to moment. If you need content pinned to a
+  specific paving slab, that is image tracking or a VPS product (8th Wall's
+  Lightship VPS, or image targets) — not this.
+
+### Constraints that only apply to `?engine=locar`
+
+Kept because the old engine is kept. None of it describes the default build.
 
 - **Accuracy is bounded by consumer GPS**, roughly ±5–20 m outdoors. Content
   will drift by metres as fixes update. Two things soften it: positions are

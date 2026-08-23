@@ -90,7 +90,7 @@ if (FEED_LATENCY > 0) {
   }, FEED_LATENCY);
 }
 
-await page.goto(`${BASE}/?sim=0&mode=relative&distance=300&bearing=90&heading=20&length=50&turn=30&alt=30&size=150&speed=1${FILTER}`, { waitUntil:'load' });
+await page.goto(`${BASE}/?engine=locar&sim=0&mode=relative&distance=300&bearing=90&heading=20&length=50&turn=30&alt=30&size=150&speed=1${FILTER}`, { waitUntil:'load' });
 await page.waitForSelector('#gate-start:not([disabled])', { timeout:180000 });
 await page.click('#gate-start');
 await page.waitForFunction(() => window.__ar?.model, null, { timeout:40000 });

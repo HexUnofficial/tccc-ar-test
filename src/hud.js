@@ -21,7 +21,8 @@ export function createHud() {
     fields: {},
   };
 
-  for (const key of ['fix', 'accuracy', 'heading', 'distance', 'bearing', 'anchor', 'subject', 'fps']) {
+  for (const key of ['fix', 'accuracy', 'heading', 'distance', 'bearing', 'anchor', 'subject',
+    'tracking', 'georef', 'fps']) {
     nodes.fields[key] = el(`f-${key}`);
   }
 
@@ -59,12 +60,19 @@ export function createHud() {
      * @param {{range:number, pixels:number}|null} state.subject
      * @param {{angle:number, range:number, onScreen:boolean}|null} state.pointer
      * @param {number} state.fps
+     * @param {string} [state.tracking]  SLAM tracking status, XR8 engine only
+     * @param {string} [state.georef]    world-frame yaw and GPS disagreement
      */
     update(state) {
-      const { position, heading, distance, bearing, anchor, subject, pointer, fps } = state;
+      const {
+        position, heading, distance, bearing, anchor, subject, pointer, fps, tracking, georef,
+      } = state;
 
       setField('fix', position ? `${position.lat.toFixed(6)}, ${position.lon.toFixed(6)}` : '—');
-      setField('accuracy', position ? `±${position.accuracy.toFixed(0)} m` : '—');
+      // The XR8 engine derives the fix from SLAM, so there is a position even
+      // before any GPS accuracy figure exists to report against it.
+      setField('accuracy', Number.isFinite(position?.accuracy)
+        ? `±${position.accuracy.toFixed(0)} m` : '—');
       setField('heading', heading == null ? '—' : `${heading.toFixed(0)}° ${compassPoint(heading)}`);
       setField('distance', distance == null ? '—' : formatDistance(distance));
       setField('bearing', bearing == null ? '—' : `${bearing.toFixed(0)}° ${compassPoint(bearing)}`);
@@ -74,6 +82,16 @@ export function createHud() {
       setField('subject', subject
         ? `${formatDistance(subject.range)} · ${subject.pixels.toFixed(0)} px`
         : '—');
+      /*
+       * Two fields the LocAR build had no equivalent for, and the pair you read
+       * when something looks wrong on site. `tracking` is whether SLAM has a
+       * pose at all — LIMITED means it does not, and the world will drift until
+       * it does. `georef` is the world frame's yaw and how far the last GPS fix
+       * fell from where SLAM says you are: a residual of a few metres is normal
+       * and ignored, one of hundreds means the compass lock was wrong.
+       */
+      setField('tracking', tracking ?? '—');
+      setField('georef', georef ?? '—');
       setField('fps', `${fps.toFixed(0)}`);
 
       /*

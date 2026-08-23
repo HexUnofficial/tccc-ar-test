@@ -34,7 +34,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 
-await page.goto(`${BASE}/?mode=fixed&debug=1`, { waitUntil: 'load' });
+await page.goto(`${BASE}/?engine=locar&mode=fixed&debug=1`, { waitUntil: 'load' });
 await page.waitForSelector('#gate-start:not([disabled])', { timeout: 90_000 });
 await page.click('#gate-start');
 await page.waitForFunction(() => window.__ar?.model, { timeout: 40_000 });

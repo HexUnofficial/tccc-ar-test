@@ -490,4 +490,131 @@ export const config = {
 
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),
+
+  /**
+   * ── 8TH WALL ────────────────────────────────────────────────────────────
+   *
+   * Everything above this line except `model`, `flight`, `anchor`, `simulate`,
+   * `viewFrom`, `ui` and `fullscreen` belongs to the LocAR engine, which is
+   * still reachable with `?engine=locar` for side-by-side comparison on site.
+   * The XR8 engine reads none of it, and the reasons are worth knowing:
+   *
+   *   gps.smoothing, gps.averageFixes, gps.minDistance
+   *       Smoothed a camera that GPS was steering. It no longer steers it.
+   *   orientationSmoothing, rotationFilter, euroMinCutoff, euroBeta
+   *       Filtered a compass the render no longer reads.
+   *   feedMatch, feedLag
+   *       Lined a live sensor up against a delayed video frame. SLAM derives
+   *       the pose from that same frame, so they cannot disagree.
+   *   verticalFov, lensFov
+   *       XR8 supplies the real camera intrinsics. Nothing left to null by eye.
+   *
+   * `gps.minAccuracy` is the one shared setting, and it still means what it did.
+   */
+  xr: {
+    /**
+     * The 8th Wall app key. XR8 is a hosted script keyed to your account and
+     * locked to the domains you authorise in the dashboard, so it cannot be
+     * bundled — which means this branch does not run at all without a key.
+     *
+     * Set `VITE_XR8_APP_KEY` in the build environment (Netlify: Site settings →
+     * Environment variables). `?appkey=` overrides it for a one-off test; the
+     * key is a public client identifier restricted by domain, not a secret, so
+     * putting it in a URL costs nothing.
+     */
+    appKey: params.get('appkey') ?? import.meta.env.VITE_XR8_APP_KEY ?? '',
+
+    /**
+     * Real metres, or screen-relative. 'absolute' is why 8th Wall was chosen
+     * here: it puts the camera at its measured height above the detected ground
+     * and renders at true metric scale, so a 60 m aircraft 1 km away is 60 m and
+     * 1 km with no scale factor anywhere in the geodetic maths.
+     */
+    scale: params.get('scale') === 'responsive' ? 'responsive' : 'absolute',
+
+    /**
+     * SLAM on, which is the entire point. `?worldtracking=0` drops to rotation
+     * only — the LocAR situation minus its compass problems — and exists as an
+     * escape hatch for a site where tracking cannot hold. See the README on
+     * featureless sky.
+     */
+    worldTracking: flag('worldtracking', true),
+
+    /**
+     * Depth range, in metres. XR8 writes its own into the projection matrix
+     * every frame and sizes it for content within reach; this installation's
+     * straight leg is 2475 m and its far turn is further still, so the range is
+     * re-widened per frame. See `setDepthRange` in src/xr/session.js.
+     */
+    near: Math.max(0.001, num('near', 0.01)),
+    far: num('far', 8000),
+
+    /**
+     * What a GPS fix after the first one is allowed to do.
+     *
+     *   'once'    nothing. The world is placed on the first good fix and then
+     *             belongs to SLAM. Later fixes only report the disagreement.
+     *   'slow'    correct the world's position, at `correctionRate` m/s.
+     *   'follow'  correct it immediately. For diagnosis, not for use.
+     *
+     * 'once' is the default and it is not laziness. GPS is worth ±5–20 m; at the
+     * kilometre this installation works over, 20 m is 1.1° of arc — invisible.
+     * SLAM's drift over a few minutes standing still is centimetres. Correcting
+     * a good pose with a worse measurement can only make it worse, and the
+     * correction itself is visible motion where none should exist.
+     *
+     * 'slow' earns its place somewhere you walk a long way, where SLAM drift
+     * eventually exceeds GPS error. Not this site.
+     */
+    geoLock: ['once', 'slow', 'follow'].includes(params.get('geolock'))
+      ? params.get('geolock')
+      : 'once',
+
+    /**
+     * Metres per second of positional correction under 'slow'. 0.5 m/s against
+     * a subject a kilometre off is 0.03°/s; against something 20 m away in
+     * relative mode it is 1.4°/s, which you would see.
+     */
+    correctionRate: Math.max(0, num('corrate', 0.5)),
+
+    /**
+     * State the world frame's yaw outright, in true degrees, and skip the
+     * compass entirely — `?yaw0=114.5`.
+     *
+     * This is the setup ritual for a real installation: stand on the mark, point
+     * the phone down the run, tap. The compass is the weakest sensor in the
+     * stack and this is the way to not depend on it. Null means read it.
+     */
+    yaw: (() => {
+      const raw = placed('yaw0');
+      if (raw === null || raw.trim() === '') return null;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : null;
+    })(),
+
+    /**
+     * How many usable compass samples to collect before locking the world. The
+     * lock is a circular mean of them, so this trades a moment of waiting for a
+     * reading that is not whichever event happened to land on the frame the
+     * user tapped. At the 30-60 Hz phones deliver, 20 is well under a second.
+     */
+    headingSamples: Math.max(1, Math.round(num('headingsamples', 20))),
+
+    /**
+     * Refine the yaw from GPS-against-SLAM displacement as you walk — the
+     * on-site alternative to trusting a magnetometer. See the walk alignment
+     * note in src/xr/georef.js. Off by default: a spectator does not walk, and
+     * a stationary phone contributes nothing but noise.
+     */
+    alignWalk: flag('alignwalk', false),
+    /** Metres of travel before a walk-alignment sample counts. */
+    walkBaseline: Math.max(1, num('walkbase', 8)),
+
+    /** Simulator only: metres from the anchor to stand, on bearing `viewFrom`. */
+    standoff: num('standoff', num('distance', 300)),
+    /** Simulator only: yaw to give the fake world frame, for testing georef. */
+    simYaw: num('simyaw', 0),
+    /** Simulator only: metres of random error to add to each synthetic fix. */
+    simGpsNoise: Math.max(0, num('simnoise', 0)),
+  },
 };

@@ -167,7 +167,18 @@ const arCtx = await browser.newContext({
 const ar = await arCtx.newPage();
 ar.on('pageerror', (e) => errors.push(`ar pageerror: ${e.message}`));
 
-await ar.goto(emitted.url, { waitUntil: 'load' });
+/*
+ * The picker emits a production URL, and production is the 8th Wall engine —
+ * which needs an app key and an authorised domain, so it cannot start from a
+ * test runner on localhost. Ask for the old engine instead.
+ *
+ * That is not a hole in the coverage. What this test is for is the handoff: that
+ * the numbers the picker put in the URL are the numbers the AR page acts on. Every
+ * one of them — lat, lon, heading, length, turn, alt, speed, size — is placement
+ * or geometry, read by the shared config and geodesy rather than by either
+ * engine, so the engine that renders them is beside the point.
+ */
+await ar.goto(emitted.url.replace('?', '?engine=locar&'), { waitUntil: 'load' });
 await ar.waitForSelector('#gate-start:not([disabled])', { timeout: 60_000 });
 await ar.click('#gate-start');
 await ar.waitForFunction(() => window.__ar?.flightPath, { timeout: 20_000 });
@@ -221,7 +232,9 @@ if (Math.abs(applied.heading - SITE.heading) > 1) {
  */
 {
   const zeroPage = await arCtx.newPage();
-  await zeroPage.goto(`${BASE}/?mode=fixed&lat=0&lon=0&debug=1`, { waitUntil: 'load' });
+  // engine=locar for the same reason as above: this is a config-parsing check,
+  // and config.js is shared by both engines.
+  await zeroPage.goto(`${BASE}/?engine=locar&mode=fixed&lat=0&lon=0&debug=1`, { waitUntil: 'load' });
   await zeroPage.waitForSelector('#gate-start:not([disabled])', { timeout: 60_000 });
   await zeroPage.click('#gate-start');
   await zeroPage.waitForFunction(

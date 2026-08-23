@@ -41,7 +41,7 @@ async function open(query, sabotage) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   if (sabotage) await page.addInitScript(sabotage);
-  await page.goto(`${BASE}/${query}`, { waitUntil: 'load' });
+  await page.goto(`${BASE}/${query.replace("?", "?engine=locar&")}`, { waitUntil: 'load' });
   await page.waitForSelector('#gate-start:not([disabled])', { timeout: 60_000 });
   await page.click('#gate-start');
   await page.waitForFunction(() => window.__ar?.model?.root, null, { timeout: 30_000 });

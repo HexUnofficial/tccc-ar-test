@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/src/styles.css">
 </head>
 <body>
-  <!-- LocAR injects the camera feed <video> behind this canvas. -->
+  <!-- XR8 draws the camera feed into this same canvas, under the scene. -->
   <canvas id="scene"></canvas>
 
   <div id="hud">
@@ -36,6 +36,8 @@
       <dt>Distance</dt><dd id="f-distance">—</dd>
       <dt>Subject</dt><dd id="f-subject">—</dd>
       <dt>Bearing</dt><dd id="f-bearing">—</dd>
+      <dt>Tracking</dt><dd id="f-tracking">—</dd>
+      <dt>Georef</dt><dd id="f-georef">—</dd>
       <dt>FPS</dt><dd id="f-fps">—</dd>
     </dl>
   </div>
@@ -58,6 +60,6 @@
     </div>
   </div>
 
-  <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/boot.js"></script>
 </body>
 </html>

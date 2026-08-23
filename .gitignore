@@ -10,3 +10,7 @@ dist/
 # Source models: large exports, optimised into public/models/ by npm run optimize
 /TcccAirplane.glb
 /*_animation.glb
+
+# Local 8th Wall app key; .env.example is the template.
+.env
+.env.local

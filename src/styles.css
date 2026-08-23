@@ -34,13 +34,32 @@ html, body {
 }
 
 /*
- * LocAR injects the camera feed as a <video> at z-index -100. Negative z-index
- * children paint BEFORE the backgrounds of non-positioned block descendants, so
- * an opaque background on <body> would cover the feed and you'd get a black
- * screen with the model floating on it. The backdrop has to live on <html>.
+ * XR8 draws the camera feed into #scene itself, as a GL texture under the scene,
+ * so on the 8th Wall path there is no <video> in the layout to paint around.
+ *
+ * The rule below still has to stay. The LocAR engine is reachable with
+ * ?engine=locar and injects the feed as a <video> at z-index -100, and negative
+ * z-index children paint BEFORE the backgrounds of non-positioned block
+ * descendants — so an opaque background on <body> would cover the feed and give
+ * you a black screen with the model floating on it. The backdrop lives on <html>
+ * for that reason, and #sim-feed below relies on the same arrangement.
  */
 html { background: #000; }
 body { background: transparent; }
+
+/*
+ * The laptop webcam behind ?sim=1, which is cosmetic — the simulator is about
+ * checking placement and parallax, and a real backdrop makes it easier to tell
+ * whether the world is holding still. `cover` matches how the phone crops.
+ */
+#sim-feed {
+  position: fixed;
+  inset: 0;
+  z-index: -100;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
 #scene {
   position: fixed;

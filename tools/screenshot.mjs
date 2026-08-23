@@ -19,7 +19,19 @@ const ctx = await browser.newContext({
   deviceScaleFactor: 2,
 });
 const page = await ctx.newPage();
-await page.goto('https://localhost:4173/?ui=debug', { waitUntil: 'load' });
+/*
+ * ?sim=1, because the 8th Wall engine needs an app key and an authorised domain
+ * and will not run on localhost from a test runner. What the simulator gives up
+ * is XR8's pose and its real intrinsics; what it keeps is everything a
+ * screenshot is for — placement, scale, the circuit, and the overlay.
+ *
+ * `mode=relative&distance=300` puts the aircraft 300 m out rather than at the
+ * Thames anchor, so the frame has something in it from wherever this runs.
+ */
+await page.goto(
+  'https://localhost:4173/?sim=1&ui=debug&mode=relative&distance=300&bearing=0',
+  { waitUntil: 'load' },
+);
 await page.waitForSelector('#gate-start:not([disabled])', { timeout: 60000 });
 await page.screenshot({ path: '.tmp/shot-gate.png' });
 
@@ -28,10 +40,19 @@ await page.waitForFunction(() => document.getElementById('f-anchor')?.textConten
 
 await page.evaluate(() => {
   const ar = window.__ar;
-  ar.app.deviceOrientationControls = null;
-  ar.camera.position.y = 1.6;
-  const t = ar.model.root.position;
-  ar.camera.lookAt(t.x, t.y + 1.4, t.z);
+  /*
+   * Point the camera at the aircraft rather than at the anchor. On a 300 m
+   * circuit those are up to 150 m apart, and the anchor is the empty middle of
+   * the racetrack — aiming at it puts the subject out of frame.
+   *
+   * Nothing has to be detached first. In the LocAR build this line disabled the
+   * orientation controls, because they would overwrite the camera on the next
+   * sensor event; here the simulator only writes rotation when the pointer is
+   * being dragged, and XR8 owns it on device.
+   */
+  ar.camera.position.set(0, 1.6, 0);
+  const subject = ar.model.motion.getWorldPosition(new ar.THREE.Vector3());
+  ar.camera.lookAt(subject);
 });
 await page.waitForTimeout(1200);
 await page.screenshot({ path: '.tmp/shot-ar.png' });

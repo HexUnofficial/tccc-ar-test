@@ -1,6 +1,15 @@
 /**
  * Builds the site, serves it, and runs the smoke test across a spread of
  * placements. One command so there's no excuse not to run it before a deploy.
+ *
+ * Two engines are covered. The 8th Wall build is the experience, and the first
+ * two suites below are its own — the georeference maths, and the separation of
+ * world from camera that the port exists to achieve. Everything after them
+ * predates the port and drives the LocAR engine, which is still reachable with
+ * `?engine=locar` for side-by-side comparison on site; those tools ask for it by
+ * name in their URLs. Several of them measure machinery the XR8 engine does not
+ * have (rotation filters, feed-latency matching) and are kept because that
+ * engine is kept, not because the settings still apply.
  */
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -32,7 +41,21 @@ const SCENARIOS = [
 const run = (cmd, args, options = {}) =>
   spawn(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32', ...options });
 
-console.log('▸ building…');
+/*
+ * First, and before anything is built: the georeference maths. It needs no
+ * browser and no server, it is where a sign error would hide, and a failure
+ * here makes every visual test downstream meaningless.
+ */
+console.log('──── the georeference ────');
+{
+  const child = run('node', ['tools/georef-test.mjs']);
+  if ((await once(child, 'exit'))[0] !== 0) {
+    console.error('georeference maths is wrong; nothing else is worth running');
+    process.exit(1);
+  }
+}
+
+console.log('\n▸ building…');
 const buildWith = (env) => run('npx', ['vite', 'build', '--logLevel', 'warn'], {
   env: { ...process.env, ...env },
 });
@@ -53,6 +76,35 @@ for (let attempt = 0; ; attempt += 1) {
 }
 
 const failed = [];
+
+/*
+ * The showstopper, as a test: panning, walking and GPS noise must not move the
+ * aircraft, while walking must still change where it appears. Runs against
+ * ?sim=1, so it needs no 8th Wall app key.
+ */
+console.log('\n──── world and camera are separable ────');
+{
+  const child = run('node', ['tools/parallax-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('world and camera are separable');
+}
+
+/*
+ * The parts of the 8th Wall path that can be checked without a key: the depth
+ * range that keeps a 2.5 km circuit inside the frustum, and the message a build
+ * deployed without one has to show.
+ */
+console.log('\n──── the XR8 harness ────');
+{
+  const child = run('node', ['tools/xr8-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('the XR8 harness');
+}
+
 for (const scenario of SCENARIOS) {
   console.log(`\n──── ${scenario.name} ────`);
   const child = run('node', ['tools/smoke-test.mjs'], {
@@ -188,8 +240,8 @@ console.log('──── build variants ────');
 
 console.log(`\n${'═'.repeat(50)}`);
 if (failed.length) {
-  console.error(`✖ ${failed.length}/${SCENARIOS.length + 8} scenarios failed:`);
+  console.error(`✖ ${failed.length}/${SCENARIOS.length + 10} scenarios failed:`);
   for (const name of failed) console.error(`   - ${name}`);
   process.exit(1);
 }
-console.log(`✔ all ${SCENARIOS.length + 8} scenarios passed`);
+console.log(`✔ all ${SCENARIOS.length + 10} scenarios passed`);

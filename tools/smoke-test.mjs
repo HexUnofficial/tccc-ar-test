@@ -44,7 +44,7 @@ page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text
 
 const MODE = process.env.MODE ?? 'relative';
 const failures = [];
-const url = `${BASE}/?sim=0&mode=${MODE}&distance=${DISTANCE}&bearing=${BEARING}&debug=1&model=witch`;
+const url = `${BASE}/?engine=locar&sim=0&mode=${MODE}&distance=${DISTANCE}&bearing=${BEARING}&debug=1&model=witch`;
 console.log(`→ ${url}`);
 await page.goto(url, { waitUntil: 'load' });
 

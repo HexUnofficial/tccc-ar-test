@@ -37,7 +37,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 
 // A stationary subject: this measures GPS response, not the flight path.
-await page.goto(`${BASE}/?mode=fixed&debug=1&model=witch`, { waitUntil: 'load' });
+await page.goto(`${BASE}/?engine=locar&mode=fixed&debug=1&model=witch`, { waitUntil: 'load' });
 await page.waitForSelector('#gate-start:not([disabled])', { timeout: 60_000 });
 await page.click('#gate-start');
 await page.waitForFunction(() => document.getElementById('f-anchor')?.textContent !== '—', null, { timeout: 20_000 });
