@@ -373,10 +373,12 @@ export const config = {
    * since 15.4; a device that reports no capture time falls back to the
    * shipped behaviour rather than to a guess.
    *
-   * Off by default because it changes what every visitor sees, and the shipped
-   * build is approved.
+   * On by default. It measures rather than guesses, and where it cannot measure
+   * it applies nothing at all — so a device reporting no capture time gets
+   * exactly the behaviour that shipped before this. `rotationFilter` is coupled
+   * to it for the same reason.
    */
-  feedMatch: flag('feedmatch', false),
+  feedMatch: flag('feedmatch', true),
 
   /**
    * Hold the render back by a fixed number of SECONDS instead of measuring —
@@ -386,42 +388,52 @@ export const config = {
   feedLag: Math.max(0, num('feedlag', 0)),
 
   /*
-   * Stays 'fixed'. This was briefly defaulted to 'euro' on the strength of the
-   * AR.js #278 workaround (`smoothingFactor: 1` — turn the smoothing off,
-   * because the smoothing IS the lag) and it was wrong, for a reason worth
-   * writing down.
+   * 'auto': the 1€ filter when the camera feed's delay is being cancelled, the
+   * plain time constant when it is not. ?filter=fixed or ?filter=euro forces
+   * either, and ?smoothrot= implies 'fixed' since that knob only means anything
+   * to that filter.
    *
-   * Every figure behind that decision compared the model against the TRUE
-   * heading. What a person compares it against is the CAMERA FEED, and the feed
-   * is tens of milliseconds behind reality. Panning, the background on screen
-   * shows where the phone was pointing a moment ago while the model is drawn
-   * from where it points now, so the model LEADS the background. That reads
-   * exactly like "it sticks to the camera" — but it is the opposite sign to
-   * smoothing lag, so removing smoothing makes it worse, not better.
+   * The coupling is the whole point, and it took two wrong defaults to find.
    *
-   * Slide measured over a feed 80 ms behind, at 60 deg/s
-   * (FEED_LATENCY_MS=80 NOISE_DEG=0 node tools/rotation-vis.mjs):
+   * An earlier attempt made 'euro' unconditional, on the strength of the AR.js
+   * #278 workaround (`smoothingFactor: 1` — turn the smoothing off, because the
+   * smoothing IS the lag). Every figure behind that compared the model against
+   * the TRUE heading. What a person compares it against is the CAMERA FEED,
+   * which is tens of milliseconds behind reality: panning, the background shows
+   * where the phone was pointing a moment ago while the model is drawn from
+   * where it points now, so the model LEADS the background. It reads exactly
+   * like sticking to the camera, but it is the opposite sign to smoothing lag —
+   * so cutting the filter's lag makes it worse, and 'euro' measured worse than
+   * the default it replaced.
    *
-   *     smoothrot 0     (the #278 fix)   5.4 deg   worst of all
-   *     smoothrot 0.04  (this default)   4.2
-   *     euro beta 35                     4.8       worse than this default
-   *     smoothrot 0.10                   1.5
-   *     smoothrot 0.14                   1.0
+   * Once `feedMatch` holds the render back by the feed's measured age, the sign
+   * flips. The delay is now supplied deliberately, so any lag the filter adds
+   * on top overshoots, and a filter that stays out of the way while panning is
+   * exactly what is wanted. Against a feed 80 ms behind, medians of repeated
+   * runs (FEED_LATENCY_MS=80 node tools/rotation-vis.mjs):
    *
-   * The ordering is reversed from the same sweep measured against true heading.
-   * A first-order lag of tau cancels a feed delay of L when tau ~= L, at any
-   * turn rate, because both offsets are proportional to that rate — so the
-   * setting that nulls the slide is the one whose lag MATCHES the phone's feed
-   * latency. That latency is a property of the device, not something to guess
-   * at from here, which is why this stays at the approved value and the
-   * candidates are reachable per-visit with ?smoothrot=.
+   *                                        slide     twitch at rest
+   *     fixed 0.04, no matching            3.36        0.18
+   *     matching + fixed 0.04              1.47         --
+   *     matching + euro beta 35            0.95        0.17
+   *     matching + no smoothing at all     0.48        0.23
    *
-   * 'euro' remains available with ?filter=euro. It is the right tool for the
-   * complaint it was aimed at — twitch while holding still — and the wrong one
-   * for slide while panning, because its whole purpose is to REDUCE lag exactly
-   * when panning, which is when the lag is doing useful work.
+   * About four times steadier while panning at no cost at rest — the first
+   * setting that beats the approved build on the complaint without trading
+   * against the other one. No smoothing at all is steadier still while panning,
+   * but it hands the raw compass through and pays for it at rest.
+   *
+   * 'auto' rather than plain 'euro' because feed matching can measure nothing on
+   * a browser that reports no frame capture time. There, no delay is applied,
+   * so 'euro' would be the version that measured WORSE — falling back to
+   * 'fixed' means such a device gets precisely what shipped before.
    */
-  rotationFilter: params.get('filter') === 'euro' ? 'euro' : 'fixed',
+  rotationFilter: (() => {
+    const asked = params.get('filter');
+    if (asked === 'euro' || asked === 'fixed') return asked;
+    if (params.has('smoothrot')) return 'fixed';
+    return 'auto';
+  })(),
 
   /**
    * 1€ filter, minimum cutoff in Hz — what it does when you hold still.
@@ -457,13 +469,24 @@ export const config = {
    * three, but 3.6° of lag is the drift that was complained about earlier.
    */
   /*
-   * Stays 5. This went to 35 while the euro filter was briefly the default,
-   * chosen as the knee of a sweep measured against true heading — the same
-   * measurement `rotationFilter` above explains was answering the wrong
-   * question. Against the visible feed a higher beta is strictly worse, since
-   * it cuts lag precisely while panning, which is when lag cancels feed delay.
+   * 35. beta sets how fast the cutoff opens as the view turns, so it decides
+   * how little lag the filter adds while panning — which is what matters now
+   * that the feed's delay is supplied deliberately and anything the filter adds
+   * on top overshoots. Swept against a noisy 60 deg/s pan, medians of three:
+   *
+   *              lag vs the sensor   twitch at rest
+   *     beta   5       1.57 deg          0.137 deg
+   *     beta  20       0.50             0.213
+   *     beta  35       0.28             0.234
+   *     beta  60       0.18             0.334
+   *     beta 120       0.10             0.299
+   *
+   * At 5 — the value this shipped with — it smoothed so hard while panning that
+   * it had MORE lag than the plain filter it was meant to improve on. Past 35
+   * the cutoff starts opening on the sensor's noise rather than on real
+   * movement, so the twitch climbs. 35 is the knee.
    */
-  euroBeta: Math.max(0, num('beta', 5)),
+  euroBeta: Math.max(0, num('beta', 35)),
 
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),

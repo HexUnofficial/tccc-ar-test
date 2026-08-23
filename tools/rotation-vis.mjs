@@ -66,6 +66,30 @@ const ctx = await browser.newContext({ permissions:['camera','geolocation'],
   ignoreHTTPSErrors:true, viewport:{width:480,height:300} });
 const page = await ctx.newPage();
 page.on('pageerror', e => console.log('!!!', e.message));
+/*
+ * Make the page's own feed-latency measurement agree with the backdrop.
+ *
+ * The backdrop is scrolled as though the feed were FEED_LATENCY behind, but the
+ * <video> in a headless browser is only ~20 ms behind, so ?feedmatch=1 measured
+ * 20 and corrected for 20 while the test was simulating 80. That understated
+ * the correction and made feed matching look far weaker than it is.
+ *
+ * Reporting captureTime as expectedDisplayTime - FEED_LATENCY makes the page
+ * see exactly the feed this test is drawing, which is the only way the two
+ * halves can be compared.
+ */
+if (FEED_LATENCY > 0) {
+  await page.addInitScript((latency) => {
+    const original = HTMLVideoElement.prototype.requestVideoFrameCallback;
+    if (!original) return;
+    HTMLVideoElement.prototype.requestVideoFrameCallback = function (callback) {
+      return original.call(this, (now, metadata) => {
+        callback(now, { ...metadata, captureTime: metadata.expectedDisplayTime - latency });
+      });
+    };
+  }, FEED_LATENCY);
+}
+
 await page.goto(`${BASE}/?sim=0&mode=relative&distance=300&bearing=90&heading=20&length=50&turn=30&alt=30&size=150&speed=1${FILTER}`, { waitUntil:'load' });
 await page.waitForSelector('#gate-start:not([disabled])', { timeout:180000 });
 await page.click('#gate-start');

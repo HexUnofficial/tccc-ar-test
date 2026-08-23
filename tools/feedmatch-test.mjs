@@ -50,6 +50,7 @@ async function open(query, sabotage) {
   const state = await page.evaluate(() => ({
     measured: window.__ar.feedLatencyMs,
     delayMs: window.__ar.renderDelaySeconds * 1000,
+    filter: window.__ar.activeRotationFilter,
     rendering: window.__ar.renderer.info.render.triangles > 0,
   }));
   return { ctx, state, errors };
@@ -57,12 +58,22 @@ async function open(query, sabotage) {
 
 const BASE_Q = '?sim=0&mode=relative&distance=200&bearing=90';
 
-// --- shipped default: measure nothing, change nothing ---
+// --- the default: measure the feed and cancel it ---
 {
   const { ctx, state, errors } = await open(BASE_Q);
-  check('default applies no delay', state.delayMs === 0, `${state.delayMs.toFixed(1)} ms`);
+  check('default cancels the feed delay', state.delayMs > 0, `${state.delayMs.toFixed(1)} ms`);
+  check('default uses the euro filter while doing so', state.filter === 'euro', `${state.filter}`);
   check('default still renders', state.rendering);
   check('default is quiet', errors.length === 0, errors[0]);
+  await ctx.close();
+}
+
+// --- turned off explicitly: exactly the behaviour that shipped before ---
+{
+  const { ctx, state, errors } = await open(`${BASE_Q}&feedmatch=0`);
+  check('feedmatch=0 applies no delay', state.delayMs === 0, `${state.delayMs.toFixed(1)} ms`);
+  check('feedmatch=0 falls back to the plain filter', state.filter === 'fixed', `${state.filter}`);
+  check('feedmatch=0 is quiet', errors.length === 0, errors[0]);
   await ctx.close();
 }
 
@@ -99,6 +110,7 @@ const BASE_Q = '?sim=0&mode=relative&distance=200&bearing=90';
   });
   check('no capture time reported -> nothing measured', state.measured === null, `${state.measured}`);
   check('no capture time reported -> no delay applied', state.delayMs === 0, `${state.delayMs} ms`);
+  check('no capture time reported -> plain filter, as shipped', state.filter === 'fixed', `${state.filter}`);
   check('no capture time reported -> still renders', state.rendering);
   check('no capture time reported -> quiet', errors.length === 0, errors[0]);
   await ctx.close();
@@ -110,6 +122,7 @@ const BASE_Q = '?sim=0&mode=relative&distance=200&bearing=90';
     delete HTMLVideoElement.prototype.requestVideoFrameCallback;
   });
   check('no rVFC -> no delay applied', state.delayMs === 0, `${state.delayMs} ms`);
+  check('no rVFC -> plain filter, as shipped', state.filter === 'fixed', `${state.filter}`);
   check('no rVFC -> still renders', state.rendering);
   check('no rVFC -> quiet', errors.length === 0, errors[0]);
   await ctx.close();
@@ -132,6 +145,7 @@ const BASE_Q = '?sim=0&mode=relative&distance=200&bearing=90';
     };
   });
   check('an absurd latency is rejected, not clamped', state.delayMs === 0, `${state.delayMs} ms`);
+  check('an absurd latency -> plain filter, as shipped', state.filter === 'fixed', `${state.filter}`);
   await ctx.close();
 }
 

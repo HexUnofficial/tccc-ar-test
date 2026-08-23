@@ -249,6 +249,7 @@ async function startAR() {
       /** Measured age of the displayed camera frame, ms, or null if unreported. */
       get feedLatencyMs() { return measuredFeedLatency; },
       get renderDelaySeconds() { return renderDelay(); },
+      get activeRotationFilter() { return activeFilter; },
       /** Scrub the circuit to a fixed time, for screenshots and tests. */
       setFlightTime(t) { flightTime = t; },
     };
@@ -422,6 +423,8 @@ async function startAR() {
    */
   let measuredFeedLatency = null;
   let feedWatchArmed = false;
+  /** Which filter the last rendered frame actually used. Exposed for tests. */
+  let activeFilter = null;
   function trackFeedLatency() {
     const feed = video();
     if (!feed?.requestVideoFrameCallback) return;
@@ -482,9 +485,22 @@ async function startAR() {
     const now = performance.now();
     aimHistory.push({ t: now, q: aim.quaternion.clone() });
     while (aimHistory.length > 2 && aimHistory[1].t < now - 600) aimHistory.shift();
-    const target = aimAsOf(renderDelay());
+    const delay = renderDelay();
+    const target = aimAsOf(delay);
 
-    if (config.rotationFilter === 'euro') {
+    /*
+     * 'auto' resolves per frame rather than at startup: the feed's age is
+     * measured from the frames themselves, so whether a delay is being applied
+     * is not known until some have arrived. Falling back to the plain filter
+     * when it is not keeps a browser that reports no capture time on exactly
+     * the behaviour that shipped before feed matching existed.
+     */
+    const filter = config.rotationFilter === 'auto'
+      ? (delay > 0 ? 'euro' : 'fixed')
+      : config.rotationFilter;
+    activeFilter = filter;
+
+    if (filter === 'euro') {
       /*
        * How fast the readings are actually turning. A magnitude only — the axis
        * is never used and nothing is projected forward, so unlike the reverted
