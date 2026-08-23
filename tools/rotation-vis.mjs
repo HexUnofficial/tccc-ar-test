@@ -28,6 +28,29 @@ const BASE = process.env.BASE_URL ?? 'https://localhost:4173';
 
 const FILTER = process.argv[2] ?? '';
 const LABEL  = process.argv[3] ?? 'fixed';
+/*
+ * How far behind reality the camera feed is, in milliseconds.
+ *
+ * This matters more than any filter setting and was missing until now. The
+ * aircraft is drawn from the orientation sensor, which is essentially live; the
+ * background it is drawn over arrived through the camera pipeline and is tens
+ * of milliseconds old. While panning, that alone slides the aircraft across the
+ * background — and in the opposite direction to smoothing lag, so removing
+ * smoothing does not help and past a point makes it worse.
+ *
+ * 0 recovers the old behaviour: measuring against the true heading, which is
+ * what a person would see only if the feed were instantaneous.
+ */
+const FEED_LATENCY = Number(process.env.FEED_LATENCY_MS ?? 80);
+/*
+ * Sensor noise, in degrees. Two different things are being measured and they
+ * want opposite settings, so it is a knob rather than a constant:
+ *
+ *   NOISE_DEG=0   measures the slide against the feed exactly, because with no
+ *                 noise the sensor history IS the true heading history.
+ *   NOISE_DEG=0.6 measures the twitch at rest, which only exists with noise.
+ */
+const NOISE_DEG = Number(process.env.NOISE_DEG ?? 0.6);
 const OUT = `.tmp/vis-${LABEL}`;
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
@@ -108,7 +131,7 @@ console.log(`${LABEL}: framing`, JSON.stringify(framing));
 if (!(framing.spanPx > 60 && framing.offAxis < 40)) { console.error('aircraft not usefully in frame — aborting'); await browser.close(); process.exit(2); }
 
 // Kick the profile off without awaiting it, so Node can screenshot while it runs.
-await page.evaluate(() => {
+await page.evaluate(([FEED_LATENCY, NOISE_DEG]) => {
   const ar = window.__ar, THREE = ar.THREE;
   const ctrl = ar.app.deviceOrientationControls, name = ctrl.orientationChangeEventName;
   const bg = document.getElementById('truth-backdrop');
@@ -125,14 +148,17 @@ await page.evaluate(() => {
 
   const t0 = performance.now();
   let last = 0, start = null, worst = 0;
+  const history = [];
   // Two separate things the user feels: lag while panning (the model "follows
   // the camera"), and jitter while holding still (it twitches on the spot).
-  const panLag = [], stillStep = [];
+  const panLag = [], stillStep = [], panLive = [];
   let prev = null;
   window.__vis = { done: false, worst: () => worst,
     metrics: () => {
       const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
-      return { panLagDeg: +mean(panLag).toFixed(3), worstLagDeg: +worst.toFixed(3),
+      return { feedLatencyMs: FEED_LATENCY,
+        panSlideDeg: +mean(panLag).toFixed(3), worstSlideDeg: +worst.toFixed(3),
+        panLagVsSensorDeg: +mean(panLive).toFixed(3),
         stillJitterDeg: +mean(stillStep).toFixed(4), frames: stillStep.length + panLag.length };
     } };
 
@@ -141,20 +167,44 @@ await page.evaluate(() => {
     const truth = truthAt(e);
     if (now - last >= 1000/30) { last = now;
       const ev = new Event(name);
-      Object.defineProperties(ev, { alpha:{value: truth + rnd()*1.2}, beta:{value:85}, gamma:{value:0}, absolute:{value:true} });
+      Object.defineProperties(ev, { alpha:{value: truth + rnd()*NOISE_DEG*2}, beta:{value:85}, gamma:{value:0}, absolute:{value:true} });
       window.dispatchEvent(ev); }
 
     const hFov = 2*Math.atan(Math.tan(cam.fov*Math.PI/360)*cam.aspect)*180/Math.PI;
     const pxPerDeg = el.clientWidth / hFov;
     if (start === null) start = truth;
-    bg.style.backgroundPositionX = `${-(truth - start) * pxPerDeg}px`;
+    // The background shows where the phone was pointing FEED_LATENCY ago, not
+    // where it points now. This is the frame the eye judges against.
+    const shown = truthAt(Math.max(0, e - FEED_LATENCY / 1000));
+    bg.style.backgroundPositionX = `${-(shown - start) * pxPerDeg}px`;
 
     // Where the app is drawing from, against where the phone truly points.
     // Compared as a rotation, not an extracted yaw angle: at beta 60 an
     // atan2 yaw is close enough to the gimbal to report nonsense.
-    q.setFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(truth), 0, 'YXZ'));
-    const err = cam.quaternion.angleTo(ctrl.object.quaternion) * 180/Math.PI;
-    if (e > PAN_FROM && e < PAN_TO + 0.15) { worst = Math.max(worst, err); panLag.push(err); }
+    /*
+     * Compared against the sensor's own orientation from FEED_LATENCY ago, not
+     * against a yaw angle: the camera's world yaw and the device's alpha differ
+     * by a fixed offset, and subtracting one from the other reported a constant
+     * ~160 deg as if it were the error.
+     *
+     * That delayed orientation is what the background on screen shows, so this
+     * is the gap the eye actually sees — the aircraft sliding over the feed.
+     */
+    history.push({ e, q: ctrl.object.quaternion.clone() });
+    const at = e - FEED_LATENCY/1000;
+    // The newest entry that is already old enough to be on screen. Walking from
+    // the end matters: taking history[0] instead cost a frame of spurious slide
+    // even with the latency set to zero.
+    let feedRef = history[0].q;
+    for (let i = history.length - 1; i >= 0; i -= 1) {
+      if (history[i].e <= at) { feedRef = history[i].q; break; }
+    }
+    while (history.length > 2 && history[1].e < at - 0.1) history.shift();
+    const err = cam.quaternion.angleTo(feedRef) * 180/Math.PI;
+    const live = cam.quaternion.angleTo(ctrl.object.quaternion) * 180/Math.PI;
+    if (e > PAN_FROM && e < PAN_TO + 0.15) {
+      worst = Math.max(worst, err); panLag.push(err); panLive.push(live);
+    }
     // Held still, after everything has had time to settle: whatever is left is
     // the sensor noise getting through, which is the twitch on the spot.
     if (e > PAN_TO + 0.6) {
@@ -163,12 +213,12 @@ await page.evaluate(() => {
     }
     const phase = e < PAN_FROM ? 'STILL' : e < PAN_TO ? `PANNING ${RATE}°/s` : 'STILL';
     hud.textContent = `${hud.dataset.label}   t=${e.toFixed(2)}s  ${phase}   `
-      + `aircraft off by ${(err * pxPerDeg).toFixed(0)}px`;
+      + `slides ${(err * pxPerDeg).toFixed(0)}px over the feed`;
 
     if (e < 2.6) requestAnimationFrame(frame); else window.__vis.done = true;
   };
   requestAnimationFrame(frame);
-});
+}, [FEED_LATENCY, NOISE_DEG]);
 
 // A CDP screencast, not page.screenshot(): a screenshot costs ~280ms of the
 // 3.6s profile, so it samples the pan a handful of times. The screencast

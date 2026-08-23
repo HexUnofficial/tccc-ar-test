@@ -358,40 +358,42 @@ export const config = {
    * differentiating noise amplifies it.
    */
   /*
-   * 'euro' is now the default, and this is the AR.js fix rather than a
-   * departure from it. AR.js issue #278 is this same complaint, and the
-   * workaround reported for it is `smoothingFactor: 1` — turn the orientation
-   * smoothing off, because the smoothing IS the lag. Measured here, with
-   * deterministic sensor noise, medians of three runs each (see
-   * tools/rotation-vis.mjs):
+   * Stays 'fixed'. This was briefly defaulted to 'euro' on the strength of the
+   * AR.js #278 workaround (`smoothingFactor: 1` — turn the smoothing off,
+   * because the smoothing IS the lag) and it was wrong, for a reason worth
+   * writing down.
    *
-   *                                  follow-lag while panning   twitch at rest
-   *     fixed 0.04 (was default)              0.93°                 0.245°
-   *     no smoothing at all                   0.00°                 0.43°
-   *     euro beta 35                          0.28°                 0.234°
+   * Every figure behind that decision compared the model against the TRUE
+   * heading. What a person compares it against is the CAMERA FEED, and the feed
+   * is tens of milliseconds behind reality. Panning, the background on screen
+   * shows where the phone was pointing a moment ago while the model is drawn
+   * from where it points now, so the model LEADS the background. That reads
+   * exactly like "it sticks to the camera" — but it is the opposite sign to
+   * smoothing lag, so removing smoothing makes it worse, not better.
    *
-   * Turning smoothing off does work — the lag goes to exactly zero. But it
-   * passes the raw compass straight through, and on an iPhone that reading is
-   * good to about ±10°, so the twitch at rest nearly doubles. That build was
-   * tried on the phone and rejected for being jitterier, which is the same
-   * verdict this table gives.
+   * Slide measured over a feed 80 ms behind, at 60 deg/s
+   * (FEED_LATENCY_MS=80 NOISE_DEG=0 node tools/rotation-vis.mjs):
    *
-   * The 1€ filter applies the fix only where the complaint lives. Panning, the
-   * cutoff opens and it approaches no-smoothing; at rest it closes and smooths
-   * harder than the fixed filter ever did. So it takes most of what turning
-   * smoothing off buys without paying for it at rest.
+   *     smoothrot 0     (the #278 fix)   5.4 deg   worst of all
+   *     smoothrot 0.04  (this default)   4.2
+   *     euro beta 35                     4.8       worse than this default
+   *     smoothrot 0.10                   1.5
+   *     smoothrot 0.14                   1.0
    *
-   * ?filter=fixed goes back to the single time constant. Passing ?smoothrot=
-   * also implies 'fixed', since that knob only means anything to that filter —
-   * so ?smoothrot=0 still reaches the unsmoothed version reported in the AR.js
-   * thread, and ?smoothrot=0.04 still reaches the build this replaced.
+   * The ordering is reversed from the same sweep measured against true heading.
+   * A first-order lag of tau cancels a feed delay of L when tau ~= L, at any
+   * turn rate, because both offsets are proportional to that rate — so the
+   * setting that nulls the slide is the one whose lag MATCHES the phone's feed
+   * latency. That latency is a property of the device, not something to guess
+   * at from here, which is why this stays at the approved value and the
+   * candidates are reachable per-visit with ?smoothrot=.
+   *
+   * 'euro' remains available with ?filter=euro. It is the right tool for the
+   * complaint it was aimed at — twitch while holding still — and the wrong one
+   * for slide while panning, because its whole purpose is to REDUCE lag exactly
+   * when panning, which is when the lag is doing useful work.
    */
-  rotationFilter: (() => {
-    const asked = params.get('filter');
-    if (asked === 'euro') return 'euro';
-    if (asked === 'fixed' || params.has('smoothrot')) return 'fixed';
-    return 'euro';
-  })(),
+  rotationFilter: params.get('filter') === 'euro' ? 'euro' : 'fixed',
 
   /**
    * 1€ filter, minimum cutoff in Hz — what it does when you hold still.
@@ -427,25 +429,13 @@ export const config = {
    * three, but 3.6° of lag is the drift that was complained about earlier.
    */
   /*
-   * 35, not the 5 this shipped with. beta sets how fast the cutoff opens as the
-   * view turns, so it decides how much of the "turn smoothing off" fix gets
-   * applied while panning. Swept against the same noisy 60°/s pan, medians of
-   * three runs:
-   *
-   *              follow-lag   twitch at rest
-   *     beta   5    1.57°         0.137°
-   *     beta  20    0.50°         0.213°
-   *     beta  35    0.28°         0.234°
-   *     beta  60    0.18°         0.334°
-   *     beta 120    0.10°         0.299°
-   *
-   * At 5 it was smoothing so hard while panning that it had MORE lag than the
-   * fixed filter it was meant to improve on — it fixed the wrong complaint.
-   * Past 35 the cutoff starts opening on the noise itself rather than on real
-   * movement, so the twitch climbs past what the old default cost. 35 is the
-   * knee: most of the lag gone, at rest no worse than the build before it.
+   * Stays 5. This went to 35 while the euro filter was briefly the default,
+   * chosen as the knee of a sweep measured against true heading — the same
+   * measurement `rotationFilter` above explains was answering the wrong
+   * question. Against the visible feed a higher beta is strictly worse, since
+   * it cuts lag precisely while panning, which is when lag cancels feed delay.
    */
-  euroBeta: Math.max(0, num('beta', 35)),
+  euroBeta: Math.max(0, num('beta', 5)),
 
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),
