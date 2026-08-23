@@ -14,7 +14,10 @@ const M_PER_DEG_LAT = 111_320;
 const STEPS = [20, 18, 16, 14, 12, 10]; // 2 m apart: below the old 5 m threshold
 const SETTLE_MS = 1400;
 
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--ignore-certificate-errors'],
 });
 const at = (metres) => ({

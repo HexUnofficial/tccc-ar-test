@@ -11,7 +11,10 @@ const BASE = process.env.BASE_URL ?? 'https://localhost:4173';
 const M = 111_320;
 const at = (metres) => ({ latitude: INSTALLATION.lat - metres / M, longitude: INSTALLATION.lon, accuracy: 8 });
 
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--ignore-certificate-errors'],
 });
 const ctx = await browser.newContext({

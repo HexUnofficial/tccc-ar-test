@@ -12,7 +12,10 @@ const BASE = process.env.BASE_URL ?? 'https://localhost:4173';
 // A stretch of the Thames at Tower Bridge, running roughly ESE.
 const SITE = { lat: 51.505516, lon: -0.075367, heading: 100, length: 300 };
 
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--ignore-certificate-errors'],
 });
 const failures = [];

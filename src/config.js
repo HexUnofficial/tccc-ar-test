@@ -225,7 +225,12 @@ export const config = {
    * noise in it, so it could only ever measure lag, never this.
    *
    * 0 is available and is genuinely lag-free, if raw sensor noise is ever
-   * preferable to a degree or two of lag.
+   * preferable to a degree or two of lag. That is the setting AR.js issue #278
+   * reports as the fix; see `rotationFilter` for why it is not the default.
+   *
+   * Only the 'fixed' filter reads this, and 'euro' is now the default — so
+   * passing ?smoothrot= selects 'fixed' as well as setting the constant, or
+   * the value would be silently ignored.
    */
   orientationSmoothing: num('smoothrot', 0.04),
 
@@ -352,7 +357,41 @@ export const config = {
    * being unusable: that differentiated the readings to guess ahead, and
    * differentiating noise amplifies it.
    */
-  rotationFilter: params.get('filter') === 'euro' ? 'euro' : 'fixed',
+  /*
+   * 'euro' is now the default, and this is the AR.js fix rather than a
+   * departure from it. AR.js issue #278 is this same complaint, and the
+   * workaround reported for it is `smoothingFactor: 1` — turn the orientation
+   * smoothing off, because the smoothing IS the lag. Measured here, with
+   * deterministic sensor noise, medians of three runs each (see
+   * tools/rotation-vis.mjs):
+   *
+   *                                  follow-lag while panning   twitch at rest
+   *     fixed 0.04 (was default)              0.93°                 0.245°
+   *     no smoothing at all                   0.00°                 0.43°
+   *     euro beta 35                          0.28°                 0.234°
+   *
+   * Turning smoothing off does work — the lag goes to exactly zero. But it
+   * passes the raw compass straight through, and on an iPhone that reading is
+   * good to about ±10°, so the twitch at rest nearly doubles. That build was
+   * tried on the phone and rejected for being jitterier, which is the same
+   * verdict this table gives.
+   *
+   * The 1€ filter applies the fix only where the complaint lives. Panning, the
+   * cutoff opens and it approaches no-smoothing; at rest it closes and smooths
+   * harder than the fixed filter ever did. So it takes most of what turning
+   * smoothing off buys without paying for it at rest.
+   *
+   * ?filter=fixed goes back to the single time constant. Passing ?smoothrot=
+   * also implies 'fixed', since that knob only means anything to that filter —
+   * so ?smoothrot=0 still reaches the unsmoothed version reported in the AR.js
+   * thread, and ?smoothrot=0.04 still reaches the build this replaced.
+   */
+  rotationFilter: (() => {
+    const asked = params.get('filter');
+    if (asked === 'euro') return 'euro';
+    if (asked === 'fixed' || params.has('smoothrot')) return 'fixed';
+    return 'euro';
+  })(),
 
   /**
    * 1€ filter, minimum cutoff in Hz — what it does when you hold still.
@@ -387,7 +426,26 @@ export const config = {
    * current default on both counts. fixed 0.08 has the steadiest pan of the
    * three, but 3.6° of lag is the drift that was complained about earlier.
    */
-  euroBeta: Math.max(0, num('beta', 5)),
+  /*
+   * 35, not the 5 this shipped with. beta sets how fast the cutoff opens as the
+   * view turns, so it decides how much of the "turn smoothing off" fix gets
+   * applied while panning. Swept against the same noisy 60°/s pan, medians of
+   * three runs:
+   *
+   *              follow-lag   twitch at rest
+   *     beta   5    1.57°         0.137°
+   *     beta  20    0.50°         0.213°
+   *     beta  35    0.28°         0.234°
+   *     beta  60    0.18°         0.334°
+   *     beta 120    0.10°         0.299°
+   *
+   * At 5 it was smoothing so hard while panning that it had MORE lag than the
+   * fixed filter it was meant to improve on — it fixed the wrong complaint.
+   * Past 35 the cutoff starts opening on the noise itself rather than on real
+   * movement, so the twitch climbs past what the old default cost. 35 is the
+   * knee: most of the lag gone, at rest no worse than the build before it.
+   */
+  euroBeta: Math.max(0, num('beta', 35)),
 
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),

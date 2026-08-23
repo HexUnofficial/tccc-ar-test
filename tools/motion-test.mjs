@@ -24,7 +24,10 @@ const MAX_VARIABILITY = 0.25;
 const MAX_STALLED = 0.05;
 const MAX_LAG = 2.5; // metres
 
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--ignore-certificate-errors'],
 });
 const at = (metres) => ({

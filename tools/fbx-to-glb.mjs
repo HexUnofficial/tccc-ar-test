@@ -14,7 +14,9 @@ const SRC = process.argv[2] ?? 'source-models/TcccAirplane_FBX.fbx';
 const DST = process.argv[3] ?? '.tmp/converted.glb';
 const BASE = process.env.BASE_URL ?? 'https://localhost:5199';
 
-const browser = await chromium.launch({ args: ['--ignore-certificate-errors'] });
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--ignore-certificate-errors'] });
 const page = await (await browser.newContext({ ignoreHTTPSErrors: true, acceptDownloads: true })).newPage();
 
 await page.goto(`${BASE}/tools/fbx/convert.html`, { waitUntil: 'load' });

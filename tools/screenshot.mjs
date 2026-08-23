@@ -2,7 +2,10 @@ import { chromium } from 'playwright';
 
 // The full Chromium build composites <video> into screenshots; the headless
 // shell used by the test suite does not, which is why those frames look black.
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   channel: 'chromium',
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--ignore-certificate-errors'],
 });

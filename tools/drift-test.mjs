@@ -15,7 +15,10 @@ const M = 111_320;
 const ACCURACY = 14; // metres, typical of a phone in a city
 const JITTER = 6; // metres of wander, comfortably inside the error circle
 
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--ignore-certificate-errors'],
 });
 const at = (north, east) => ({

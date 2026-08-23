@@ -9,7 +9,10 @@ import { INSTALLATION } from '../src/location.js';
 // facing due south. An anchor due north is therefore reliably behind you.
 
 const BASE = process.env.BASE_URL ?? 'https://localhost:4173';
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--ignore-certificate-errors'],
 });
 
@@ -125,9 +128,10 @@ async function open(query) {
  * per rendered frame, so the test is that the view still moves on frames where
  * no reading arrived at all.
  *
- * Asked for explicitly with ?smoothrot=, because the default is 0 — on a phone
- * the lag any easing costs was more objectionable than the stepping it removes,
- * so the mechanism ships switched off. It still has to work when switched on.
+ * Asked for explicitly with ?smoothrot=, which now also selects the 'fixed'
+ * filter: the default is the 1€ filter, whose whole point is that its time
+ * constant is not fixed. This asserts the plain easing still behaves when it is
+ * the one in use — it is what ?filter=fixed falls back to.
  */
 {
   const { ctx, page } = await open('?sim=0&smoothrot=0.05&mode=relative&distance=20&bearing=0');

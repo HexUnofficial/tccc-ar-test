@@ -19,7 +19,10 @@ const FIX = {
 const DISTANCE = Number(process.env.DISTANCE ?? 20);
 const BEARING = Number(process.env.BEARING ?? 0);
 
+// CHROMIUM_PATH is for environments that ship a browser Playwright did not
+// download itself; unset it and Playwright uses its own.
 const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   args: [
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
