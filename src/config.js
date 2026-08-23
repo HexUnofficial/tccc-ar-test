@@ -287,12 +287,32 @@ export const config = {
    * the part that was guesswork, namely whether iOS hands over a landscape or
    * an already-rotated portrait feed, which moves the answer from 42° to 68°.
    *
-   * 68 is the iPhone main wide camera: 26 mm equivalent is 2·atan(18/26), about
-   * 69° across the long axis. Ultra-wide is nearer 100 and the 2x is nearer 37,
-   * so change this if the lens changes. `?vfov=` still forces an exact vertical
-   * value and wins over this.
+   * 68 would be the iPhone main wide camera: 26 mm equivalent is 2·atan(18/26),
+   * about 69° across the long axis. Ultra-wide is nearer 100, the 2x nearer 37.
+   * `?vfov=` forces an exact vertical value and wins over this.
+   *
+   * Defaults to 0 — off — even though the value it would replace is wrong. A
+   * correct fov is not free: it is narrower, and a narrower fov spreads the same
+   * angular error over more pixels. Over 896 px, 173° gives 5.2 px per degree
+   * and 53.7° gives 16.7, so every bit of compass noise and every millisecond of
+   * latency becomes 3.2 times more visible. Judged on the phone, that read as
+   * markedly worse — laggier and jitterier — even though the geometry was right
+   * and the drift it fixes is real.
+   *
+   * That trade is worth understanding before turning it on. The registration
+   * error the wide fov causes is invisible here: the aircraft is a kilometre
+   * away, flying, with nothing behind it to line up against, so nobody can tell
+   * it sits a couple of hundred pixels from where GPS says. The tracking error
+   * the narrow fov reveals is not invisible at all. Being wrong in a way no one
+   * can see beats being right in a way everyone can.
+   *
+   * Worth knowing if it is ever revisited: with the correction off, LocAR's own
+   * fov is not stable either — it recomputes on resize and was measured moving
+   * between 173° and 60°, so the world's scale shifts when the browser toolbar
+   * appears. `?vfov=120` buys back the forgiving wide view *and* pins it, which
+   * is the better version of leaving this off.
    */
-  lensFov: Math.max(0, num('lens', 68)),
+  lensFov: Math.max(0, num('lens', 0)),
 
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),
