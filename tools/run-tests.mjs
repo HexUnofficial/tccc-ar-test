@@ -124,6 +124,18 @@ console.log(`\n──── map picker ────`);
   if (code !== 0) failed.push('map picker');
 }
 
+// Feed matching must degrade to the shipped behaviour on browsers that report
+// no frame capture time, since this has to run on whatever a visitor brings.
+console.log('');
+console.log('──── matching the camera feed ────');
+{
+  const child = run('node', ['tools/feedmatch-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('matching the camera feed');
+}
+
 server.kill();
 
 // Does the scene stay put when the viewer does?
