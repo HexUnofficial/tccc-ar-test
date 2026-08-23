@@ -124,9 +124,13 @@ async function open(query) {
  * The sensor now drives a detached object and the camera eases towards it once
  * per rendered frame, so the test is that the view still moves on frames where
  * no reading arrived at all.
+ *
+ * Asked for explicitly with ?smoothrot=, because the default is 0 — on a phone
+ * the lag any easing costs was more objectionable than the stepping it removes,
+ * so the mechanism ships switched off. It still has to work when switched on.
  */
 {
-  const { ctx, page } = await open('?sim=0&mode=relative&distance=20&bearing=0');
+  const { ctx, page } = await open('?sim=0&smoothrot=0.05&mode=relative&distance=20&bearing=0');
   const aim = (alpha) => page.evaluate((a) => {
     const name = window.__ar.app.deviceOrientationControls.orientationChangeEventName;
     const event = new Event(name);

@@ -179,44 +179,35 @@ export const config = {
   },
 
   /**
-   * How long the view takes to catch up to the sensors, in seconds.
+   * How long the view takes to catch up to the sensors, in seconds. 0 tracks
+   * them exactly.
    *
-   * A time constant, not a fraction: the camera eases towards the latest
-   * reading once per rendered frame, so this is frame-rate independent. It
-   * exists because LocAR only writes rotation when a reading lands, which left
-   * the view frozen between them — stepping that read as jitter while panning.
+   * A time constant, not a fraction: the camera eases towards the latest reading
+   * once per rendered frame, so it is frame-rate independent. It exists because
+   * LocAR only writes rotation when a reading lands, which leaves the view
+   * frozen between them — motion quantised to the sensor's clock rather than the
+   * display's.
    *
-   * It has to be small, though, because the same easing lags the phone and the
-   * scene is pinned to compass north: lag makes the whole world drift with the
-   * pan, which looks like the aircraft following you rather than sitting at its
-   * anchor. Measured while panning at 60°/s with readings at 30Hz:
+   * Any easing also lags the phone, and because the scene is pinned to compass
+   * north that lag drifts the whole world along with a pan, which reads as the
+   * aircraft following you rather than holding its anchor. Measured while
+   * panning at 60°/s with readings at 30Hz:
    *
    *     tau     world lag   frames frozen
    *     0.08      4.02°        0%
-   *     0.04      1.81°        0%
-   *     0.02      0.55°        0%
-   *     0         0.00°       44%   <- stepping is back
+   *     0.02      0.57°        0%
+   *     0         0.00°       44%
    *
-   * 0.02 is the corner: a little over half a degree of lag, which is a couple
-   * of pixels, and still a fresh orientation every frame. Raise it if compass
-   * noise becomes visible while holding still — that is the other end of the
-   * same trade — and ?smoothrot=0 shows you the stepping it prevents.
+   * Set to 0 deliberately, after trying the alternatives on a phone. On paper
+   * 0.02 looks like the better trade — half a degree is a couple of pixels, and
+   * nothing repeats a frame. On the device the drift was the thing that showed,
+   * and the stepping was not. Both were judged by eye on an iPhone, which beats
+   * either column above.
    *
-   * What is left after this is not ours to remove by smoothing: the reading
-   * describes where the phone was, and the frame drawn from it is presented
-   * later again. Rendering *ahead* of the readings was tried and reverted. It
-   * worked on paper — lead grew linearly with the setting, and a synthetic pan
-   * measured under a degree of wobble — but on a phone it was unusable. The
-   * reason the measurement lied is worth keeping: prediction needs angular
-   * velocity, velocity means differentiating the readings, and differentiating
-   * amplifies noise before multiplying it by the lead time. The synthetic events
-   * were perfectly smooth, so there was no noise in the test to amplify.
-   *
-   * If it is ever worth another go, do not differentiate orientation. Take the
-   * rate straight from the gyroscope — DeviceMotionEvent.rotationRate — which is
-   * measured rather than inferred, and judge it on a phone from the start.
+   * Raise it if the stepping ever becomes the more objectionable of the two.
+   * 0.01 is the gentlest setting that still refreshes every frame.
    */
-  orientationSmoothing: num('smoothrot', 0.02),
+  orientationSmoothing: num('smoothrot', 0),
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
