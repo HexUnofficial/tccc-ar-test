@@ -124,6 +124,16 @@ console.log(`\n──── map picker ────`);
   if (code !== 0) failed.push('map picker');
 }
 
+// The delivered GLB itself, before anything is served: a WebP texture or an
+// opaque material marked BLEND makes every later visual failure a red herring.
+console.log('');
+console.log('──── the delivered model ────');
+{
+  const child = run('node', ['tools/model-test.mjs']);
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('the delivered model');
+}
+
 // Feed matching must degrade to the shipped behaviour on browsers that report
 // no frame capture time, since this has to run on whatever a visitor brings.
 console.log('');

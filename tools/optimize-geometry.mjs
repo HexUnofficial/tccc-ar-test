@@ -81,6 +81,66 @@ if (droppedChannels) {
     + `${droppedClips} empty clips (${doc.getRoot().listAnimations().length} remain)`);
 }
 
+/*
+ * ── OPAQUE PAINT EXPORTED AS TRANSPARENT ──────────────────────────────────
+ *
+ * Blender writes alphaMode BLEND for every material whose Alpha input is
+ * connected, whether or not anything is actually see-through. This export
+ * arrived with 17 of 18 materials BLEND at opacity 1: paint, metal, tyres,
+ * seats, the banner.
+ *
+ * three.js takes BLEND at its word and puts those meshes in the transparent
+ * queue, which is sorted back to front per object rather than per pixel and
+ * does not write depth. Interpenetrating parts then fail to occlude each
+ * other, so panels show through one another or vanish — and because the
+ * ordering depends on the driver's sort, it can look correct on one device and
+ * holed on the next. That is the "missing plane panels" report.
+ *
+ * A material is switched to OPAQUE only when it cannot possibly need blending:
+ * full opacity AND a base colour texture with no alpha channel at all (or no
+ * base texture). A texture that does carry an alpha channel is left alone even
+ * if every pixel in it happens to be opaque — being wrong in that direction
+ * puts hard black edges around a decal, which is worse than a sorting artefact.
+ *
+ * Deliberately not keyed to material names: the next export will rename
+ * everything again, and this has to keep working without being edited.
+ */
+function hasAlphaChannel(image, mimeType) {
+  if (!image || image.length < 26) return false;
+  // JPEG has no alpha channel, ever.
+  if (mimeType === 'image/jpeg') return false;
+  const png = image[0] === 0x89 && image[1] === 0x50 && image[2] === 0x4e && image[3] === 0x47;
+  if (!png) return true; // unknown container: assume it might, and leave it be
+  // IHDR is the first chunk; colour type is its 10th byte. 4 = grey+alpha,
+  // 6 = RGBA. Anything else carries no alpha.
+  const colourType = image[25];
+  return colourType === 4 || colourType === 6;
+}
+
+function fixAlphaModes(document) {
+  const fixed = [];
+  const kept = [];
+  for (const material of document.getRoot().listMaterials()) {
+    if (material.getAlphaMode() !== 'BLEND') continue;
+    const name = material.getName();
+    if (material.getAlpha() < 1) { kept.push(`${name} (opacity ${material.getAlpha().toFixed(2)})`); continue; }
+    const texture = material.getBaseColorTexture();
+    if (texture && hasAlphaChannel(texture.getImage(), texture.getMimeType())) {
+      kept.push(`${name} (texture carries alpha)`);
+      continue;
+    }
+    material.setAlphaMode('OPAQUE');
+    fixed.push(name);
+  }
+  if (fixed.length) {
+    console.log(`  alpha       ${fixed.length} opaque material(s) were exported as BLEND; set to OPAQUE`);
+  }
+  for (const k of kept) console.log(`              left blended: ${k}`);
+  return fixed.length;
+}
+
+fixAlphaModes(doc);
+
 await doc.transform(
   dedup(),
   // weld() first: simplify can only collapse edges across shared vertices, and
