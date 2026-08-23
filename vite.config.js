@@ -15,6 +15,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
  * Set EXCLUDE_SETUP=1 to leave it out of a build.
  */
 const includeSetup = process.env.EXCLUDE_SETUP !== '1';
+const includeXr = process.env.EXCLUDE_XR !== '1';
 
 // getUserMedia, geolocation and DeviceOrientationEvent all require a secure
 // context, so even local development has to be served over HTTPS.
@@ -41,6 +42,12 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
+        /*
+         * The SLAM build, alongside the approved one rather than instead of it:
+         * both ship from the same deploy so they can be compared on the same
+         * phone, minutes apart, in the same light. EXCLUDE_XR=1 drops it.
+         */
+        ...(includeXr ? { xr: resolve(import.meta.dirname, 'xr.html') } : {}),
         ...(includeSetup ? { setup: resolve(import.meta.dirname, 'setup.html') } : {}),
       },
       output: {

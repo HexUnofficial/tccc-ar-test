@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Are you ready? — SLAM build</title>
+  <link rel="icon" href="./icons/icon-192.png">
+  <!--
+    The engine is a prebuilt binary that attaches itself to window.XR8 and
+    fetches its SLAM chunk by URL at runtime, so it is loaded by script tag from
+    public/ rather than bundled. data-preload-chunks starts that 5 MB fetch
+    immediately instead of at first use.
+  -->
+  <script async src="./xr8/xr.js" data-preload-chunks="slam"></script>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff; }
+    #xr-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    #xr-gate { position: fixed; inset: 0; z-index: 20; background: #F40000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 1.5rem; padding: 2rem; text-align: center; }
+    #xr-gate[hidden] { display: none; }
+    #xr-gate h1 { margin: 0; font-size: 2rem; line-height: 1.1; font-weight: 800; }
+    #xr-gate p { margin: 0; max-width: 22rem; opacity: 0.9; line-height: 1.45; }
+    #xr-start { border: 0; border-radius: 999px; padding: 1rem 2.5rem; font-size: 1.1rem;
+      font-weight: 700; background: #fff; color: #F40000; }
+    #xr-start[disabled] { opacity: 0.6; }
+    #xr-status { position: fixed; left: 0; right: 0; top: 0; z-index: 10;
+      padding: 0.6rem 1rem; text-align: center; font-size: 0.85rem;
+      background: rgba(0, 0, 0, 0.45); pointer-events: none; }
+    #xr-status:empty { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="xr-canvas"></canvas>
+  <p id="xr-status"></p>
+
+  <div id="xr-gate">
+    <h1>Are you ready?</h1>
+    <p>Best now, better forever.</p>
+    <p style="font-size:.8rem;opacity:.8">
+      Experimental build: tracked by the camera rather than the compass.
+      Point the phone at the ground or the skyline for a moment before looking up.
+    </p>
+    <button id="xr-start" type="button">Start</button>
+  </div>
+
+  <script type="module" src="/src/xr/main.js"></script>
+</body>
+</html>

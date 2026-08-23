@@ -406,6 +406,17 @@ export const config = {
    */
   feedFallback: Math.max(0, num('feedfallback', 0.09)),
 
+  /**
+   * xr.html only: seconds over which the compass is allowed to pull the world
+   * round to true north — ?xrnorth=6.
+   *
+   * Long on purpose. SLAM holds rotation steady and drifts in yaw by degrees per
+   * minute; the compass is absolutely referenced but jitters by degrees per
+   * second. A short constant would feed that jitter straight back into a view
+   * SLAM is holding still, which is the artefact this page exists to avoid.
+   */
+  xrNorthSmoothing: Math.max(0, num('xrnorth', 6)),
+
   /*
    * 'auto': the 1€ filter when the camera feed's delay is being cancelled, the
    * plain time constant when it is not. ?filter=fixed or ?filter=euro forces

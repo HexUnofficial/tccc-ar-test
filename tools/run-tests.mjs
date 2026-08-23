@@ -134,6 +134,16 @@ console.log('──── measuring the feed\'s age ────');
   if (code !== 0) failed.push("measuring the feed's age");
 }
 
+// The SLAM build's north alignment, as arithmetic. No browser: the page itself
+// cannot be meaningfully exercised without a real camera.
+console.log('');
+console.log('──── SLAM build: finding north ────');
+{
+  const child = run('node', ['tools/xr-north-test.mjs']);
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('SLAM build: finding north');
+}
+
 // The delivered GLB itself, before anything is served: a WebP texture or an
 // opaque material marked BLEND makes every later visual failure a red herring.
 console.log('');
@@ -154,6 +164,18 @@ console.log('──── measuring it from the pixels ────');
   });
   const [code] = await once(child, 'exit');
   if (code !== 0) failed.push('measuring it from the pixels');
+}
+
+// The SLAM build starts and is placed correctly. Says nothing about tracking
+// quality, which needs a real camera and a real sky.
+console.log('');
+console.log('──── SLAM build: starts and is placed ────');
+{
+  const child = run('node', ['tools/xr-test.mjs'], {
+    env: { ...process.env, BASE_URL, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+  });
+  const [code] = await once(child, 'exit');
+  if (code !== 0) failed.push('SLAM build: starts and is placed');
 }
 
 // Feed matching must degrade to the shipped behaviour on browsers that report

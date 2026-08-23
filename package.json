@@ -11,7 +11,9 @@
     "screenshot": "node tools/screenshot.mjs",
     "model:tccc": "node tools/optimize-geometry.mjs source-models/TCCCAirplane_glb-optimized_V5.glb public/models/tccc-airplane.glb",
     "model:witch": "node tools/optimize-model.mjs source-models/witch.glb public/models/witch.glb",
-    "model:tccc-from-fbx": "node tools/fbx-to-glb.mjs source-models/TcccAirplane_FBX.fbx .tmp/tccc-raw.glb && node tools/optimize-geometry.mjs .tmp/tccc-raw.glb public/models/tccc-airplane.glb"
+    "model:tccc-from-fbx": "node tools/fbx-to-glb.mjs source-models/TcccAirplane_FBX.fbx .tmp/tccc-raw.glb && node tools/optimize-geometry.mjs .tmp/tccc-raw.glb public/models/tccc-airplane.glb",
+    "xr8": "node tools/copy-xr8.mjs",
+    "prebuild": "node tools/copy-xr8.mjs"
   },
   "repository": {
     "type": "git",
@@ -31,6 +33,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@8thwall/engine-binary": "^1.0.0",
     "@gltf-transform/cli": "^4.4.2",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "playwright": "^1.62.1",
