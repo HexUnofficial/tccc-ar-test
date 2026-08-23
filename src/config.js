@@ -334,6 +334,61 @@ export const config = {
    */
   lensFov: Math.max(0, num('lens', 0)),
 
+  /**
+   * Which filter smooths the rotation. 'fixed' (default) or 'euro'.
+   *
+   * 'fixed' is `orientationSmoothing` above: one time constant, all the time,
+   * which forces a choice between wobble at rest and lag while panning.
+   *
+   * 'euro' is the 1€ filter (Casiez, Roussel & Vogel, CHI 2012): the same
+   * first-order low-pass, but with a cutoff that rises with the signal's own
+   * speed. The two complaints never coincide — holding still there is no motion
+   * to lag, so smoothing is free; panning, real movement swamps the noise, so
+   * smoothing buys nothing and only costs lag — so an adaptive cutoff can beat
+   * a fixed one at both ends rather than trading them.
+   *
+   * It only varies how hard it smooths. It never extrapolates, which is the
+   * difference between this and the ?predict= attempt that was reverted for
+   * being unusable: that differentiated the readings to guess ahead, and
+   * differentiating noise amplifies it.
+   */
+  rotationFilter: params.get('filter') === 'euro' ? 'euro' : 'fixed',
+
+  /**
+   * 1€ filter, minimum cutoff in Hz — what it does when you hold still.
+   *
+   * Lower is smoother. 1.0 Hz is about a 0.16 s time constant at 60fps, four
+   * times calmer than the fixed filter's 0.04 — which at rest costs nothing,
+   * because there is no motion to lag behind.
+   */
+  euroMinCutoff: Math.max(0.01, num('fcmin', 1.0)),
+
+  /**
+   * 1€ filter, speed coefficient — how fast it gets out of the way, per rad/s.
+   *
+   * Higher means less lag while panning, at the cost of letting more noise
+   * through while panning. 20 was tried first and was too aggressive: measured
+   * against noisy readings it cut the lag to 0.35° but pushed the shake while
+   * panning to 1.27°, worse than the fixed filter manages. 5 is the setting
+   * that keeps the win at rest without paying for it in motion.
+   *
+   * Measured against noisy readings, median of three runs, jitter as the
+   * standard deviation of the per-frame step:
+   *
+   *                       still jitter   pan jitter   pan lag
+   *     fixed 0.04           0.164°        0.905°      1.33°
+   *     fixed 0.08           0.078°        0.588°      3.62°
+   *     euro b5 fc1.0        0.060°        1.004°      1.49°
+   *
+   * Read that honestly: this does not beat the fixed filter everywhere, which
+   * is what was claimed for it before it was measured. It is much the calmest
+   * of the three when the phone is still — the worst single frame step falls
+   * from 0.60° to 0.25° — and while panning it is a shade worse than the
+   * current default on both counts. fixed 0.08 has the steadiest pan of the
+   * three, but 3.6° of lag is the drift that was complained about earlier.
+   */
+  euroBeta: Math.max(0, num('beta', 5)),
+
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),
 };

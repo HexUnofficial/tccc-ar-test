@@ -377,8 +377,38 @@ async function startAR() {
     app.deviceOrientationControls.smoothingFactor = 1;
   }
 
+  /**
+   * The fraction of the remaining error a first-order low-pass removes this
+   * frame, for a given cutoff. Straight from the 1€ filter's definition:
+   * tau = 1/(2*pi*fc), alpha = 1/(1 + tau/dt).
+   */
+  const cutoffAlpha = (hz, dt) => 1 / (1 + 1 / (2 * Math.PI * hz * dt));
+
+  /** Cutoff for the speed estimate itself, in Hz — the paper's dcutoff. */
+  const SPEED_CUTOFF = 1;
+  const previousAim = new THREE.Quaternion().copy(aim.quaternion);
+  /** Filtered angular speed of the readings, radians per second. */
+  let aimSpeed = 0;
+
   function followAim(dt) {
     if (!app.deviceOrientationControls || dt <= 0) return;
+
+    if (config.rotationFilter === 'euro') {
+      /*
+       * How fast the readings are actually turning. A magnitude only — the axis
+       * is never used and nothing is projected forward, so unlike the reverted
+       * prediction this cannot turn noise into movement. It can only decide how
+       * hard to smooth.
+       */
+      const turning = previousAim.angleTo(aim.quaternion) / dt;
+      previousAim.copy(aim.quaternion);
+      aimSpeed += cutoffAlpha(SPEED_CUTOFF, dt) * (turning - aimSpeed);
+
+      const cutoff = config.euroMinCutoff + config.euroBeta * aimSpeed;
+      camera.quaternion.slerp(aim.quaternion, cutoffAlpha(cutoff, dt));
+      return;
+    }
+
     const tau = config.orientationSmoothing;
     // Exponential approach expressed per second, so the feel does not change
     // with frame rate. tau <= 0 means track the sensor exactly.
