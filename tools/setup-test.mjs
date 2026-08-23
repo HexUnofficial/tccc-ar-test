@@ -97,7 +97,6 @@ const shipped = await picker.evaluate(async () => {
   move('speed', '47');
   move('turn', '75');
   move('size', '250');
-  move('predict', '0.06');
   return { before, after: document.getElementById('snippet').value };
 });
 
@@ -109,9 +108,6 @@ for (const [label, needle] of [
   ['speed', 'speed: 47'],
   ['turnRadius', 'turnRadius: 75'],
   ['size', 'size: 250'],
-  // Latency compensation is tuned by feel on a phone, so it has to survive the
-  // trip back into location.js or the tuning is lost on the next paste.
-  ['predict', 'predict: 0.06'],
 ]) {
   if (!shipped.after.includes(needle)) {
     failures.push(`"Ship it" snippet does not carry ${label} as code (${needle})`);

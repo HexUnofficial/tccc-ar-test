@@ -4,7 +4,7 @@
  * placement, scale and facing from the phone's address bar without a redeploy.
  */
 import {
-  DEFAULT_MODE, FLIGHT, FLIGHT_HEADING, INSTALLATION, LOCKED, RELATIVE_PLACEMENT, VIEW,
+  DEFAULT_MODE, FLIGHT, FLIGHT_HEADING, INSTALLATION, LOCKED, RELATIVE_PLACEMENT,
 } from './location.js';
 import { DEFAULT_MODEL, MODELS } from './models.js';
 
@@ -201,27 +201,22 @@ export const config = {
    * of pixels, and still a fresh orientation every frame. Raise it if compass
    * noise becomes visible while holding still — that is the other end of the
    * same trade — and ?smoothrot=0 shows you the stepping it prevents.
+   *
+   * What is left after this is not ours to remove by smoothing: the reading
+   * describes where the phone was, and the frame drawn from it is presented
+   * later again. Rendering *ahead* of the readings was tried and reverted. It
+   * worked on paper — lead grew linearly with the setting, and a synthetic pan
+   * measured under a degree of wobble — but on a phone it was unusable. The
+   * reason the measurement lied is worth keeping: prediction needs angular
+   * velocity, velocity means differentiating the readings, and differentiating
+   * amplifies noise before multiplying it by the lead time. The synthetic events
+   * were perfectly smooth, so there was no noise in the test to amplify.
+   *
+   * If it is ever worth another go, do not differentiate orientation. Take the
+   * rate straight from the gyroscope — DeviceMotionEvent.rotationRate — which is
+   * measured rather than inferred, and judge it on a phone from the start.
    */
   orientationSmoothing: num('smoothrot', 0.02),
-
-  /**
-   * How far ahead of the sensor readings to aim, in seconds. 0 is off.
-   *
-   * Everything about getting an orientation onto the screen is late: the reading
-   * describes where the phone was, and the frame drawn from it is presented a
-   * frame or two later again. Since the scene is pinned to compass north, that
-   * shows up as the whole world drifting along with a pan and settling
-   * afterwards — which reads as the aircraft following you rather than holding
-   * its anchor, even though it is fixed to a GPS position.
-   *
-   * Smoothing cannot fix this; it is the one thing that makes it worse. The
-   * remedy is to render where the phone is going: take the angular velocity of
-   * the readings and extrapolate. Off by default because the right value is
-   * whatever cancels a particular device's latency, which is a thing to feel on
-   * the phone rather than guess at here. Start at 0.05 and go up until the world
-   * stops dragging; too far and it will overshoot and spring back instead.
-   */
-  orientationPrediction: Math.max(0, num('predict', VIEW.predict)),
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
