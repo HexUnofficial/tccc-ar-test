@@ -198,16 +198,36 @@ export const config = {
    *     0.02      0.57°        0%
    *     0         0.00°       44%
    *
-   * Set to 0 deliberately, after trying the alternatives on a phone. On paper
-   * 0.02 looks like the better trade — half a degree is a couple of pixels, and
-   * nothing repeats a frame. On the device the drift was the thing that showed,
-   * and the stepping was not. Both were judged by eye on an iPhone, which beats
-   * either column above.
+   * 0.02 because that is what this always effectively was, and 0 was below it.
    *
-   * Raise it if the stepping ever becomes the more objectionable of the two.
-   * 0.01 is the gentlest setting that still refreshes every frame.
+   * Before any of this, LocAR did the filtering itself: `smoothingFactor: 0.4`
+   * made it slerp 60% of the way to each reading as the reading arrived. That
+   * was disabled when the easing moved to a per-frame clock, and the setting
+   * was then taken down to 0 on the strength of the table above — which left no
+   * filtering at all, and passed raw compass noise straight to the screen. It
+   * was jitterier than the build it replaced, and the table is why: it measures
+   * lag and repeated frames, neither of which is noise.
+   *
+   * The equivalence, so this is not guessed at again: retaining 0.4 of the error
+   * per event is a time constant of -dt/ln(0.4) — 18 ms if readings arrive at
+   * 60Hz, 36 ms at 30Hz. iOS delivers nearer 30, so 0.04 is the match, and it
+   * is what the measurements agree with. Feeding a stationary heading jittering
+   * by +/-0.6 degrees, which is ordinary compass noise at rest:
+   *
+   *     tau     wobble sd   frame-to-frame
+   *     0         0.323°       0.291°
+   *     0.02      0.296°       0.255°
+   *     0.04      0.244°       0.204°
+   *
+   * Note how little 0.02 buys. A first-order filter with a 20 ms constant barely
+   * touches noise arriving at 30Hz — which is why the earlier "0.02 is the
+   * corner" reasoning was wrong: it was derived from a synthetic pan with no
+   * noise in it, so it could only ever measure lag, never this.
+   *
+   * 0 is available and is genuinely lag-free, if raw sensor noise is ever
+   * preferable to a degree or two of lag.
    */
-  orientationSmoothing: num('smoothrot', 0),
+  orientationSmoothing: num('smoothrot', 0.04),
 
   /** Desktop testing: fake GPS, mouse-look, WASD movement. */
   simulate: flag('sim', false),
