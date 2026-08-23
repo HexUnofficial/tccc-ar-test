@@ -33,69 +33,60 @@ function createGroundShadow(radius) {
   return shadow;
 }
 
-/**
- * Does this geometry enclose a volume, or is it a one-sided sheet?
- *
- * Summing the vertex normals of a closed shell very nearly cancels, because
- * every outward face is opposed by one pointing the other way. On an open sheet
- * they all agree instead, so the sum keeps close to its full length. Measured
- * on this aircraft: the banner comes out at 0.13, and the three genuinely
- * one-sided parts at 0.98 to 1.00 — so 0.6 sits in open space between them.
- */
-function enclosesVolume(geometry) {
-  const normal = geometry?.getAttribute('normal');
-  if (!normal || normal.count === 0) return false;
-
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  for (let i = 0; i < normal.count; i += 1) {
-    x += normal.getX(i);
-    y += normal.getY(i);
-    z += normal.getZ(i);
-  }
-  return Math.hypot(x, y, z) / normal.count < 0.6;
-}
 
 /**
- * Turn off double-sided rendering wherever the geometry is solid.
+ * Draw the airframe from both sides, and only the banner from one.
  *
- * The export marks every material doubleSided, so interior faces are drawn as
- * well as exterior ones. On the banner that is not merely wasteful but visibly
- * wrong: it is a two-layer sheet whose two faces carry separate UVs — the
- * texture holds one copy of the lettering per side — with the layers about 34
- * units apart in a banner 1099 long, a few millimetres once scaled to metres.
- * The inside of the far layer therefore draws over the outside of the near one
- * and its reversed lettering bleeds through, so the banner reads forwards and
- * backwards at once and neither is legible.
+ * Two faults pull in opposite directions here, which is why this is not simply
+ * "cull backfaces" or simply "don't".
  *
- * Deliberately decided from the geometry rather than from material or mesh
- * names: the model is redelivered by the 3D team as the design changes, and a
- * rename would silently switch a name-matched fix back off with the only
- * symptom being unreadable lettering. A closed shell never needs its inside
- * drawn, so this is safe wherever it fires, and genuinely one-sided parts keep
- * both faces.
+ * The banner has to be culled. It is a two-layer sheet whose faces carry
+ * separate UVs — the texture holds one copy of the lettering per side — with
+ * the layers a few millimetres apart once scaled. Drawn double-sided, the
+ * inside of the far layer covers the outside of the near one and its reversed
+ * lettering bleeds through, so the banner reads forwards and backwards at once.
  *
- * A material shared between a solid and a sheet stays double-sided — culling it
- * would make the sheet vanish from one side, which is the one way this could
- * make things worse.
+ * The airframe must NOT be culled. It is not a closed shell: firing rays
+ * straight up from beneath it hits `Cowling_Top003` — the TOP cowling, from the
+ * inside — and the crossing counts come back odd, so there is no belly skin
+ * under parts of the cabin. Culled, you look through the aircraft and see the
+ * seats, the gear and the sky beyond; parts of it simply appear to be missing,
+ * which is exactly how this was reported from the ground with the aircraft
+ * overhead. Drawn double-sided, the inside of the top skin closes the
+ * silhouette instead: not physically right, but solid, and the interior of a
+ * model seen from a few hundred metres is not worth a hole in the fuselage.
+ *
+ * An earlier version of this decided by geometry — cull whatever encloses a
+ * volume — and got the airframe wrong, because a fuselage missing its floor
+ * still reads as closed by that test while being anything but. The banner is
+ * identified instead by the texture it shares: one material carries a
+ * recognisable name and the rest of the banner group is whatever else draws
+ * with the same image, which is how the second banner material survives being
+ * named 材质 by the exporter. Names alone would not do it, and the next export
+ * will rename things again.
  */
-function cullBackfacesOnSolids(model) {
-  const sheetMaterials = new Set();
-  const solidMaterials = new Set();
-
+function solidShellExceptBanner(model) {
+  const materials = new Set();
   model.traverse((child) => {
     if (!child.isMesh) return;
-    const solid = enclosesVolume(child.geometry);
-    for (const material of [].concat(child.material)) {
-      if (material) (solid ? solidMaterials : sheetMaterials).add(material);
-    }
+    for (const material of [].concat(child.material)) if (material) materials.add(material);
   });
 
-  for (const material of solidMaterials) {
-    if (!sheetMaterials.has(material)) material.side = THREE.FrontSide;
+  // Seed from the one name we can rely on, then follow the shared texture.
+  const bannerImages = new Set();
+  for (const material of materials) {
+    if (/banner/i.test(material.name ?? '') && material.map) bannerImages.add(material.map.uuid);
   }
+  const banner = new Set(
+    [...materials].filter((m) => /banner/i.test(m.name ?? '') || (m.map && bannerImages.has(m.map.uuid))),
+  );
+
+  for (const material of materials) {
+    material.side = banner.has(material) ? THREE.FrontSide : THREE.DoubleSide;
+  }
+  return { banner: banner.size, airframe: materials.size - banner.size };
 }
+
 
 /**
  * Load the GLB and normalise it into something we can drop onto a GPS anchor:
@@ -144,7 +135,7 @@ export async function loadModel(onProgress) {
   model.traverse((child) => {
     if (child.isMesh) child.frustumCulled = false;
   });
-  cullBackfacesOnSolids(model);
+  solidShellExceptBanner(model);
 
   /*
    * Three nested groups, each owning exactly one concern:
