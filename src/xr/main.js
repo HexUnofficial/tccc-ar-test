@@ -8,7 +8,7 @@ import { bearingBetween, destination, distanceBetween } from '../geo.js';
 import { createGeoReference } from './georef.js';
 import { createHeadingReader, requestOrientationPermission } from './heading.js';
 import { watchGps } from './gps.js';
-import { loadXR8, startSession, worldBearingOf } from './session.js';
+import { loadEngine, startSession, waitForXR8, worldBearingOf } from './session.js';
 import { attachFlyControls, attachWebcamBackdrop, startSimulatedSession } from './simulate.js';
 
 /**
@@ -58,6 +58,17 @@ const gateMessage = document.getElementById('gate-message');
 
 const hud = createHud();
 hud.setChromeVisible(config.ui === 'debug');
+
+/*
+ * Start fetching the engine now, before anything else happens in this module.
+ *
+ * It is the largest thing the page downloads — 2.1 MB gzipped with the tracker —
+ * and it is wanted only on this path, which is why the tags are not in
+ * index.html. Kicking it off here rather than at the tap means it downloads
+ * alongside the aircraft instead of after someone has already pressed Start.
+ * Skipped under ?sim=1, which has no XR8 in it at all.
+ */
+if (!config.simulate) loadEngine();
 
 /** Start fetching the model immediately; it should be ready before GPS is. */
 const modelPromise = loadModel((progress) => {
@@ -152,7 +163,7 @@ async function startAR() {
       controls = attachFlyControls({ camera: session.camera, canvas });
     } else {
       gateMessage.textContent = 'Starting 8th Wall…';
-      await loadXR8(config.xr.appKey);
+      await waitForXR8();
       session = await startSession({
         canvas,
         worldTracking: config.xr.worldTracking,

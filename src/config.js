@@ -512,17 +512,19 @@ export const config = {
    * `gps.minAccuracy` is the one shared setting, and it still means what it did.
    */
   xr: {
-    /**
-     * The 8th Wall app key. XR8 is a hosted script keyed to your account and
-     * locked to the domains you authorise in the dashboard, so it cannot be
-     * bundled — which means this branch does not run at all without a key.
+    /*
+     * There is no app key, and nothing here to configure for one.
      *
-     * Set `VITE_XR8_APP_KEY` in the build environment (Netlify: Site settings →
-     * Environment variables). `?appkey=` overrides it for a one-off test; the
-     * key is a public client identifier restricted by domain, not a secret, so
-     * putting it in a URL costs nothing.
+     * There used to be. XR8 was a hosted script keyed to an account and locked
+     * to domains authorised in a dashboard; that platform was retired in
+     * February 2026, and the engine now ships as `@8thwall/engine-binary` on
+     * npm under a limited-use licence. It is staged into public/external/ by
+     * `npm run xr8:sync` and loaded by script tags in index.html.
+     *
+     * Worth knowing because it deletes a whole class of deployment problem: no
+     * environment variable, no subdomain-specific allowlist, and deploy
+     * previews work rather than failing on an unauthorised origin.
      */
-    appKey: params.get('appkey') ?? import.meta.env.VITE_XR8_APP_KEY ?? '',
 
     /**
      * Real metres, or screen-relative. 'absolute' is why 8th Wall was chosen

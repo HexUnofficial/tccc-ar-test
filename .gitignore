@@ -11,6 +11,8 @@ dist/
 /TcccAirplane.glb
 /*_animation.glb
 
-# Local 8th Wall app key; .env.example is the template.
-.env
-.env.local
+# The 8th Wall runtime, staged into public/ from node_modules by
+# `npm run xr8:sync`. Generated from package-lock.json like anything else under
+# node_modules, and the licence only permits distributing it unmodified — so
+# there is nothing to gain by committing a copy that can go stale.
+public/external/

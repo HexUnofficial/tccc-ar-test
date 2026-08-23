@@ -61,16 +61,62 @@ const buildWith = (env) => run('npx', ['vite', 'build', '--logLevel', 'warn'], {
 });
 if ((await once(buildWith({}), 'exit'))[0] !== 0) process.exit(1);
 
+/*
+ * ── THE PORT HAS TO BE OURS ───────────────────────────────────────────────
+ *
+ * This suite used to spawn a preview server, wait for `fetch(BASE_URL)` to
+ * answer, and take that as proof it was up. On Windows that check is a lie.
+ *
+ * `spawn` runs the server through a shell, so `server.kill()` kills the shell
+ * and leaves the `vite` grandchild holding the port. Every run therefore leaked
+ * a server; the next run's `vite preview` found 4173 taken, printed nothing
+ * useful into `stdio: 'ignore'`, and exited — but `fetch` answered instantly,
+ * because the *old* server was still there. The tests then ran against a stale
+ * `dist` from a previous build.
+ *
+ * Which is exactly what it looked like: intermittent failures, a different
+ * scenario each run, every one of them passing when run on its own. Thirty
+ * leaked servers had accumulated before the cause was found. It is not
+ * flakiness, so it does not get retried — it gets refused.
+ */
+if (await fetch(BASE_URL).then(() => true).catch(() => false)) {
+  console.error(
+    `✖ something is already serving ${BASE_URL}.\n`
+    + '  That is almost certainly a leaked preview server from an earlier run, and\n'
+    + '  continuing would test whichever build it is holding rather than this one.\n'
+    + '  Kill it first:\n'
+    + '    Windows:  Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" |\n'
+    + '                Where-Object { $_.CommandLine -match \'vite.*preview\' } |\n'
+    + '                ForEach-Object { Stop-Process -Id $_.ProcessId -Force }\n'
+    + '    macOS/Linux:  pkill -f "vite preview"',
+  );
+  process.exit(1);
+}
+
 console.log(`▸ serving on ${BASE_URL}`);
 const server = run('npx', ['vite', 'preview', '--port', String(PORT)], { stdio: 'ignore' });
 
-// Wait for the server to answer rather than guessing at a sleep duration.
+/** Kill the server and everything the shell spawned under it. */
+const stopServer = () => {
+  if (!server.pid || server.exitCode !== null) return;
+  if (process.platform === 'win32') {
+    // /T for the tree, because the shell is the only child we have a handle on.
+    spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    server.kill();
+  }
+};
+// Including on Ctrl-C, which is how most of the leaked servers got there.
+for (const signal of ['exit', 'SIGINT', 'SIGTERM']) process.once(signal, stopServer);
+
+// Wait for the server to answer rather than guessing at a sleep duration. Safe
+// to trust now: the port was demonstrably free a moment ago.
 for (let attempt = 0; ; attempt += 1) {
   try {
     await fetch(BASE_URL);
     break;
   } catch {
-    if (attempt > 50) { server.kill(); throw new Error('preview server never came up'); }
+    if (attempt > 50) { stopServer(); throw new Error('preview server never came up'); }
     await new Promise((r) => setTimeout(r, 200));
   }
 }
@@ -80,7 +126,7 @@ const failed = [];
 /*
  * The showstopper, as a test: panning, walking and GPS noise must not move the
  * aircraft, while walking must still change where it appears. Runs against
- * ?sim=1, so it needs no 8th Wall app key.
+ * ?sim=1, so it needs no camera and no device.
  */
 console.log('\n──── world and camera are separable ────');
 {
@@ -92,9 +138,10 @@ console.log('\n──── world and camera are separable ────');
 }
 
 /*
- * The parts of the 8th Wall path that can be checked without a key: the depth
- * range that keeps a 2.5 km circuit inside the frustum, and the message a build
- * deployed without one has to show.
+ * The parts of the 8th Wall path reachable without a camera: the depth range that
+ * keeps a 2.5 km circuit inside the frustum, the engine being served from our own
+ * origin rather than the retired hosted platform, the messages shown when it
+ * fails to start, and the licence attribution the engine obliges us to carry.
  */
 console.log('\n──── the XR8 harness ────');
 {
@@ -198,8 +245,6 @@ console.log('──── matching the camera feed ────');
   if (code !== 0) failed.push('matching the camera feed');
 }
 
-server.kill();
-
 // Does the scene stay put when the viewer does?
 console.log('');
 console.log('──── holding station ────');
@@ -210,6 +255,17 @@ console.log('──── holding station ────');
   const [code] = await once(child, 'exit');
   if (code !== 0) failed.push('holding station');
 }
+
+/*
+ * The server goes down here rather than before this test, which is where it used
+ * to be. That only ever worked because the kill did not: `server.kill()` killed
+ * the shell and left `vite` holding the port, so this test ran against a server
+ * that was supposed to be gone. Killing it properly turned that into a failure
+ * and showed where the line actually belonged.
+ *
+ * Everything below needs no server — it inspects the built files.
+ */
+stopServer();
 
 // The picker ships with the site now, but must stay opt-out-able: if the
 // placement is ever locked down, a build has to be able to drop it entirely.

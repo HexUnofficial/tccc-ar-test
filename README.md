@@ -6,9 +6,15 @@ real-world coordinate — tracked by SLAM, so the model stays put while you move
 rather than being dragged around by your own sensors. Runs in mobile Safari and
 Android Chrome: no app, no app store, no WebXR requirement.
 
-Built on **[8th Wall Web](https://www.8thwall.com/docs/web/)** (XR8) and
-three.js. The previous engine, [LocAR.js](https://github.com/AR-js-org/locar.js),
-is still in the tree and still reachable with `?engine=locar` — see
+Built on the **[8th Wall engine](https://8thwall.org/docs)** (XR8) and three.js.
+Since 8th Wall's hosted platform was retired in February 2026 the engine ships as
+[an npm package](https://github.com/8thwall/8thwall) rather than a keyed CDN
+script — there is no app key and no domain allowlist, but the engine binary is
+proprietary and its licence carries an attribution obligation. See
+[Getting it running](#getting-it-running).
+
+The previous engine, [LocAR.js](https://github.com/AR-js-org/locar.js), is still
+in the tree and reachable with `?engine=locar` — see
 [Why the port](#why-the-port-world-position-vs-camera-position).
 
 ## Why the port: world position vs camera position
@@ -65,7 +71,7 @@ resolved on the first good GPS fix and then left alone.
 npm run test:parallax
 ```
 
-Runs against `?sim=1`, so it needs no app key and no phone:
+Runs against `?sim=1`, so it needs no camera and no phone:
 
 | check | result |
 | --- | --- |
@@ -99,32 +105,81 @@ no longer there.
 
 ## Getting it running
 
-XR8 is a hosted script keyed to your 8th Wall account and locked to the domains
-you authorise, so it cannot be bundled or vendored. **This branch does not run
-at all without an app key.**
-
-1. Create a project at [8thwall.com](https://www.8thwall.com/) and copy its app
-   key from the dashboard.
-2. Add the domains you will serve from to the project's **authorised domains** —
-   your Netlify domain, plus any deploy-preview pattern you use. XR8 refuses to
-   start on an unlisted origin, with a message the page surfaces on the gate.
-3. Put the key in the build environment:
+The engine is an npm dependency, not a hosted script:
 
 ```bash
-cp .env.example .env      # then edit it
+npm install
+npm run dev
 ```
 
-```
-VITE_XR8_APP_KEY=your_key_here
-```
+`npm run xr8:sync` runs automatically before `dev` and `build`. It stages
+`@8thwall/engine-binary` and `@8thwall/xrextras` into `public/external/`, where
+Vite serves them in development and copies them verbatim into `dist` on build.
+[index.html](index.html) loads them with plain script tags.
 
-On Netlify that is **Site settings → Environment variables**, same name. The key
-is a public client identifier restricted by domain, not a secret, so `?appkey=`
-also works for a one-off test.
+They deliberately do not go through the bundler. `xr.js` fetches its SLAM chunks
+at runtime by path relative to itself, so a hashed bundle breaks them — and the
+engine licence permits distribution only in the original form, which settles it
+either way. `public/external/` is gitignored: it is generated from
+`package-lock.json` like anything else in `node_modules`.
 
-Without a key the gate says so and stays usable, rather than white-screening —
-`npm run test:xr8` covers that, because a misconfigured deploy discovered in a
-field is expensive.
+**There is no app key and no domain allowlist.** If you have read older 8th Wall
+documentation, ignore everything it says about `appKey`, authorised domains and
+the Cloud Editor — see below.
+
+### What happened to the hosted platform
+
+8th Wall's hosted platform was **retired on 28 February 2026**: logins, the cloud
+editor and the web-based Studio are gone, and experiences published on it run
+only until 28 February 2027. 8th Wall is now community-driven under Niantic
+Spatial, with the engine distributed on npm.
+
+For this project that is a simplification. Gone with it: the `VITE_XR8_APP_KEY`
+environment variable, the subdomain-specific authorised-domains list, deploy
+previews failing on an unauthorised origin, whitelisting a LAN IP to test on a
+phone, and the paid plan that self-hosting used to require.
+
+What it costs is a **2.1 MB gzipped** first load that used to come off 8th Wall's
+CDN and now comes off ours — `xr.js` at 0.33 MB and `xr-slam.js` at 1.78 MB,
+cached for a week by [netlify.toml](netlify.toml). The aircraft downloads in
+parallel with it. `dist` grows to about 30 MB, most of which is face and
+semantics models that a visitor never requests; they ship because the licence
+does not permit us to prune the distribution.
+
+There is also an **8th Wall Desktop App** (macOS public beta) — that is the Studio
+editor, and this project does not use it. We integrate the engine into our own
+Vite build instead.
+
+### Licence, and what it obliges us to do
+
+Two different licences, and the distinction matters for a client deployment:
+
+- The **open-source 8th Wall toolset** is MIT.
+- The **engine binary we actually ship** — SLAM, absolute scale, the camera
+  pipeline — is not. It is proprietary, under the
+  [XR Engine License Agreement](https://github.com/8thwall/engine/blob/main/LICENSE),
+  a limited, revocable, non-transferable licence.
+
+Commercial use of the kind this project is: **permitted**. Niantic Spatial's
+[Permitted Use FAQ](https://8thwall.org/docs/migration/faq) is explicit that
+agencies may use the engine for branded client work "provided the engine is one
+component of a broader creative or marketing deliverable" — the principle being
+that you may sell the experience but not the engine. A branded AR activation is
+the example they give. What is forbidden is reselling the engine, building a
+competing product, or reverse-engineering it.
+
+**Attribution is mandatory**, and it is a licence term rather than a courtesy.
+Clause 1.3 requires the deployed experience to identify Niantic Spatial as the
+engine's creator, carry a copyright notice, refer to the licence, and note the
+disclaimer of warranties. That is the `.gate-credit` line on the start screen,
+and `npm run test:xr8` asserts it is present and visible — a gate redesign could
+otherwise drop it silently. The packages' own `LICENSE` files are copied into
+`dist` for the same reason.
+
+Two things to take to whoever signs this off: the licence is **revocable** and
+the platform is now **community-maintained rather than vendor-supported**, so
+there is no support contract behind the tracker. Niantic Spatial ask that
+enterprise arrangements go to `support@nianticspatial.com`.
 
 ## Quick start
 
@@ -139,7 +194,7 @@ Open the **https** URL it prints. On a laptop, add `?sim=1`:
 https://localhost:5173/?sim=1
 ```
 
-That skips XR8 entirely — no app key needed — uses your laptop webcam for the
+That skips XR8 entirely, uses your laptop webcam for the
 passthrough feed, and gives you **drag to look around**, **WASD to walk** and
 **Q/E for height**. Hold shift to move faster.
 
@@ -314,7 +369,6 @@ address bar instead of redeploying.
 
 | Parameter | Default | Purpose |
 |---|---|---|
-| `appkey` | from `VITE_XR8_APP_KEY` | One-off override of the 8th Wall app key |
 | `yaw0` | — | State the world frame's true bearing outright; skips the compass |
 | `geolock` | `once` | `once`, `slow` or `follow` — what later GPS fixes may do |
 | `corrate` | `0.5` | Metres per second of positional correction under `slow` |
@@ -503,9 +557,11 @@ any of them makes the visual tests meaningless:
   of the fixes never arriving — a test that only ever asserts "nothing changed"
   passes just as well when nothing is running.
 - **[tools/xr8-test.mjs](tools/xr8-test.mjs)** — the two parts of the 8th Wall
-  path reachable without an app key: that widening the depth range keeps a 2.5 km
-  circuit inside the frustum without disturbing the focal terms, and that a build
-  deployed with no key says so on the gate instead of white-screening.
+  path reachable without a camera: that widening the depth range keeps a 2.5 km
+  circuit inside the frustum without disturbing the focal terms, that the engine
+  is served from our own origin and never from the retired hosted platform, that
+  a deploy which skipped `xr8:sync` says so on the gate instead of white-screening
+  or spinning forever, and that the licence attribution is present and visible.
 
 Everything below this line predates the port and drives the old engine via
 `?engine=locar`. It is kept because that engine is kept for on-site comparison;
@@ -569,11 +625,20 @@ That one uses the full Chromium build, which composites the (synthetic) camera
 feed into the image; the headless shell used by `npm test` does not, so frames
 captured there always look black.
 
+One caveat on the suite itself. It used to leak a preview server on every run —
+`spawn` goes through a shell on Windows, so `server.kill()` killed the shell and
+left `vite` holding port 4173 — and the next run's `fetch` would answer from that
+stale server, silently testing a previous build. That produced exactly what it
+looked like: intermittent failures, a different scenario each time, all of them
+passing when run alone. `run-tests.mjs` now refuses to start if anything already
+holds the port, and kills the process tree rather than the shell. If you see that
+refusal, something really is still running; the message says how to clear it.
+
 What none of it can tell you, and this list got longer with the port: **XR8's
 actual tracking quality**, whether absolute scale puts the ground where it should
 be, whether tracking holds when the phone tips up past the skyline at open sky,
 compass accuracy, magnetometer drift, real GPS jitter, sunlight legibility, or
-thermal throttling. The app key does not work from a test runner on localhost, so
+thermal throttling. Headless Chromium has no camera to track against, so
 everything about the pose itself needs a phone and a pavement.
 
 The one thing the suite *can* now prove without a device is the thing that was
@@ -665,12 +730,11 @@ PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 That last one matters: Playwright is a devDependency used only by the tests, and
 its install step would otherwise pull ~150 MB of browsers into every deploy.
 
-**One requirement Netlify does not satisfy by default:** `VITE_XR8_APP_KEY` has
-to be set under Site settings → Environment variables, and the Netlify domain
-(plus any deploy-preview pattern) has to be listed in the 8th Wall project's
-authorised domains. A deploy without either produces a page that loads, shows
-the gate, and then tells the user it has no app key — which is the correct
-failure, but still a failure.
+**Nothing extra to configure.** There is no app key and no domain allowlist, so
+deploy previews work and there are no environment variables to forget. The one
+thing a deploy must do is run `npm run xr8:sync`, and `prebuild` does that
+automatically — a build that somehow skipped it produces a page that loads, shows
+the gate, and then names the missing engine, which `npm run test:xr8` covers.
 
 Two hard requirements, both of which Netlify satisfies by default:
 
@@ -780,9 +844,14 @@ people are asked to stand.
 
 ## Known constraints
 
-- **An 8th Wall app key is required**, and the domain must be authorised in the
-  dashboard. There is no offline or self-hosted XR8. `?sim=1` is the only way to
-  run without one, and it is a stand-in, not the engine.
+- **The engine binary is proprietary and its licence is revocable.** Commercial
+  use of this kind is permitted and attribution is mandatory — see
+  [Licence](#licence-and-what-it-obliges-us-to-do). The platform is
+  community-maintained since the February 2026 sunset, so there is no vendor
+  support behind the tracker.
+- **The engine costs 2.1 MB gzipped on first load**, served from our own origin
+  now rather than 8th Wall's CDN. `?sim=1` is the only way to run without it, and
+  it is a stand-in, not the engine.
 - **SLAM needs visual texture.** Sky and open water are the failure case, and
   this installation points a phone at both. See
   [Where tracking can fail](#where-tracking-can-fail).
@@ -832,6 +901,19 @@ Kept because the old engine is kept. None of it describes the default build.
   Start AR gate is for; the request has to happen inside a user gesture.
 - **The compass is the weak link.** iOS exposes a true-north heading; Android
   varies by device and can be tens of degrees out until calibrated.
+- **Its field of view is nondeterministic.** LocAR builds its camera as
+  `PerspectiveCamera(hFov / aspect, …)` and recomputes that on resize, so for an
+  identical page load at an identical 414x896 viewport `camera.fov` comes out as
+  either **80.0** (the constructor value) or **173.1** (the recompute), depending
+  on whether its resize handler ran first. Probed over six loads: one 80.0, five
+  173.1. That changes the apparent size of the model, so the size assertion in
+  `tools/smoke-test.mjs` sits close to a boundary and fails occasionally on this
+  path — most often the `fixed site` scenario, which lands nearest the edge.
+
+  Not worth fixing in an engine this branch replaces, and not papered over by
+  widening the assertion either. `?vfov=` pins the fov if you need a repeatable
+  measurement. The 8th Wall engine has no equivalent: its projection comes from
+  the camera intrinsics every frame.
 - **LocAR's default projection is Web Mercator**, whose "metres" are inflated by
   `1/cos(latitude)` — at 51°N a model placed 20 m away renders 32 m away and
   looks far too small. [src/projection.js](src/projection.js) replaces it with a

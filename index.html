@@ -57,9 +57,35 @@
       <p>Point your phone at the world around you. We need your camera, location and motion sensors.</p>
       <button id="gate-start" type="button" disabled>Start AR</button>
       <p id="gate-message">Loading model…</p>
+      <!--
+        Required, not decorative. Clause 1.3 of the XR Engine License Agreement
+        obliges us to identify Niantic Spatial as the engine's creator, carry a
+        copyright notice, and link the licence, in any material that uses the
+        engine's functionality. The gate is the one screen in this experience
+        that is not a live camera feed, so it is where this belongs.
+      -->
+      <p class="gate-credit">
+        AR by the 8th Wall engine. © Niantic Spatial, Inc.
+        <a href="https://github.com/8thwall/engine/blob/main/LICENSE" target="_blank" rel="noopener">Licensed</a>
+        without warranty of any kind.
+      </p>
     </div>
   </div>
 
+  <!--
+    The 8th Wall engine is NOT loaded here, deliberately, even though its own
+    documentation puts the tags in the HTML.
+
+    It is 6 MB with the tracker preloaded, and a static tag downloads it on every
+    page load — including `?engine=locar`, which does not use it at all, and which
+    exists precisely so the two engines can be compared on a phone at a riverbank.
+    Making the A/B comparison pay 6 MB for the engine it is not running is both
+    wasteful and a way to make the old build look worse than it is.
+
+    So src/xr/session.js injects the tags instead, and only when the 8th Wall
+    engine is the one selected. It does so at module load, in parallel with the
+    aircraft download, so nothing is lost on the path that does need it.
+  -->
   <script type="module" src="/src/boot.js"></script>
 </body>
 </html>

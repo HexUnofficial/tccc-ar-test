@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
+    "xr8:sync": "node tools/sync-xr8.mjs",
+    "predev": "npm run xr8:sync",
     "dev": "vite",
+    "prebuild": "npm run xr8:sync",
     "build": "vite build",
     "preview": "vite preview --host",
     "optimize": "node tools/optimize-model.mjs",
@@ -28,6 +31,8 @@
   },
   "homepage": "https://github.com/HexUnofficial/tccc-ar-test#readme",
   "dependencies": {
+    "@8thwall/engine-binary": "^1.0.0",
+    "@8thwall/xrextras": "^1.0.0",
     "leaflet": "^1.9.4",
     "locar": "^0.2.7",
     "qrcode": "^1.5.4",

@@ -3,50 +3,117 @@ import * as THREE from 'three';
 /**
  * ── BRINGING UP 8TH WALL ──────────────────────────────────────────────────
  *
- * XR8 is not an npm package. It is a hosted script keyed to your account and to
- * the domains you have authorised in the 8th Wall dashboard, and it refuses to
- * run anywhere else — so it cannot be bundled, vendored or served from our own
- * origin, and it is loaded at runtime instead.
+ * The engine is a local dependency, not a hosted script.
  *
- * That has one consequence worth stating plainly: this branch cannot run at all
- * without an app key. See `VITE_XR8_APP_KEY` in README, and `?sim=1` for the
- * desktop path that skips XR8 entirely.
+ * It used to be the other way round: `apps.8thwall.com/xrweb?appKey=…`, keyed to
+ * an account and locked to domains authorised in a dashboard. That platform was
+ * retired in February 2026 and 8th Wall is now community-driven under Niantic
+ * Spatial — the engine ships as `@8thwall/engine-binary` on npm, there is no app
+ * key, and there is no domain allowlist. Which is a straightforward improvement:
+ * no environment variable to forget, and deploy previews work.
+ *
+ * What it is not is bundled. `xr.js` and `xrextras.js` are served as static files
+ * from `public/external/`, staged there by `npm run xr8:sync`, because the engine
+ * fetches its SLAM chunks by path relative to itself and because its licence
+ * permits distribution only in the original form.
+ *
+ * The tags are injected here rather than written into index.html, which is what
+ * 8th Wall's own documentation suggests. The engine plus its tracker is 6 MB, and
+ * a static tag downloads it on every page load — including `?engine=locar`, which
+ * does not use it and which exists so the two engines can be compared on a phone.
+ * `loadEngine` is called as this module is evaluated, so on the path that does
+ * need the engine it still downloads in parallel with the aircraft.
+ *
+ * `@8thwall/engine-binary` exports an `XR8Promise` that does the waiting, and it
+ * is deliberately not used: it never rejects. A missing or blocked script would
+ * leave the gate spinning forever with nothing on screen to say why, which is the
+ * failure mode most likely to happen in a field rather than at a desk.
  */
 
-const XR8_SRC = 'https://apps.8thwall.com/xrweb';
-const XREXTRAS_SRC = 'https://cdn.8thwall.com/web/xrextras/xrextras.js';
+/** Staged by tools/sync-xr8.mjs. Paths are relative, to respect Vite's base. */
+const ENGINE_SRC = 'external/xr/xr.js';
+const XREXTRAS_SRC = 'external/xrextras/xrextras.js';
 
-function loadScript(src, ready, event) {
-  if (ready()) return Promise.resolve(ready());
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-xr="${event}"]`);
-    if (!existing) {
-      const script = document.createElement('script');
-      script.src = src;
-      script.async = true;
-      script.dataset.xr = event;
-      script.addEventListener('error', () =>
-        reject(new Error(`Could not load ${src} — check the network and the app key.`)));
-      document.head.appendChild(script);
-    }
-    // Both scripts announce themselves with an event rather than resolving on
-    // load, because they finish initialising after the tag is done.
-    window.addEventListener(event, () => resolve(ready()), { once: true });
-  });
+/** How long to wait for the runtime before deciding it is not coming. */
+const LOAD_TIMEOUT_MS = 20_000;
+
+const url = (path) => new URL(path, document.baseURI).href;
+
+function injectScript(src, { preloadChunks } = {}) {
+  if (document.querySelector(`script[data-xr8="${src}"]`)) return;
+  const script = document.createElement('script');
+  script.src = url(src);
+  script.async = true;
+  script.dataset.xr8 = src;
+  /*
+   * Start the tracker downloading alongside the engine rather than after it. It
+   * is the larger half of the payload, and the gate is already waiting on a
+   * 205 KB aircraft over mobile data.
+   */
+  if (preloadChunks) script.dataset.preloadChunks = preloadChunks;
+  document.head.appendChild(script);
 }
 
-/** Fetch xrextras and xrweb, in that order. Resolves once XR8 exists. */
-export async function loadXR8(appKey) {
-  if (!appKey) {
-    throw new Error(
-      'No 8th Wall app key. Set VITE_XR8_APP_KEY (see README), or add ?sim=1 to run without XR8.',
-    );
+/**
+ * Begin fetching the engine. Idempotent, and safe to call before anything else
+ * is ready — the tags simply have to be in the document before we wait on them.
+ */
+export function loadEngine() {
+  injectScript(ENGINE_SRC, { preloadChunks: 'slam' });
+  injectScript(XREXTRAS_SRC);
+}
+
+/**
+ * Why the engine is not here, as a sentence someone can act on.
+ *
+ * Worth the extra request: a 404 and a dropped connection produce the same
+ * `error` event on a script element, and they are completely different problems
+ * with completely different audiences. A 404 is ours — a deploy that skipped
+ * `xr8:sync`. A network failure belongs to whoever is standing outside, and
+ * telling them to add `?sim=1` would be nonsense, because the simulator has no
+ * tracking in it.
+ */
+async function diagnose() {
+  try {
+    const response = await fetch(url(ENGINE_SRC), { method: 'HEAD', cache: 'no-store' });
+    if (response.status === 404) {
+      return 'The 8th Wall engine is missing from this build — run `npm run xr8:sync`. '
+        + 'Add ?sim=1 to run without it.';
+    }
+    if (!response.ok) {
+      return `The 8th Wall engine could not be loaded (${response.status}). Please reload.`;
+    }
+    // It is there and it was served; it just never announced itself. Almost
+    // always the tracker chunks failing partway on a weak connection.
+    return 'The 8th Wall engine did not start. Check your connection and reload.';
+  } catch {
+    return 'The 8th Wall engine could not be reached. Check your connection and reload.';
   }
-  // XRExtras first: its modules are referenced while building the pipeline, and
-  // it is the smaller of the two, so a failure here surfaces sooner.
-  await loadScript(XREXTRAS_SRC, () => window.XRExtras, 'xrextrasloaded');
-  await loadScript(`${XR8_SRC}?appKey=${encodeURIComponent(appKey)}`, () => window.XR8, 'xrloaded');
-  return window.XR8;
+}
+
+/**
+ * Resolve once `window.XR8` exists, or reject with something a person standing
+ * outdoors can act on.
+ *
+ * The engine announces itself with an `xrloaded` event rather than on script
+ * load, because it finishes initialising after the tag is done.
+ */
+export function waitForXR8({ timeout = LOAD_TIMEOUT_MS } = {}) {
+  if (window.XR8) return Promise.resolve(window.XR8);
+  loadEngine(); // no-op if the tags are already in, and a safety net if not
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      window.removeEventListener('xrloaded', onLoaded);
+      diagnose().then((message) => reject(new Error(message)));
+    }, timeout);
+
+    function onLoaded() {
+      clearTimeout(timer);
+      resolve(window.XR8);
+    }
+    window.addEventListener('xrloaded', onLoaded, { once: true });
+  });
 }
 
 /**

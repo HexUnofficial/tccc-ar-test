@@ -222,3 +222,16 @@ body { background: transparent; }
 #gate-start:disabled { opacity: 0.5; box-shadow: none; }
 
 #gate-message { margin: 1rem 0 0; font-size: 0.8rem; min-height: 1.2em; opacity: 0.9; }
+
+/*
+ * The engine attribution the licence requires. Quiet, but legible and
+ * selectable — the obligation is to carry the notice, not to hide it, so this
+ * deliberately stops short of the 0.4 opacity that would make it decorative.
+ */
+.gate-credit {
+  margin: 1.5rem 0 0;
+  font-size: 0.65rem;
+  line-height: 1.4;
+  opacity: 0.65;
+}
+.gate-credit a { color: inherit; }

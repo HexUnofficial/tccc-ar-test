@@ -19,3 +19,18 @@
   [headers.values]
     Content-Type = "model/gltf-binary"
     Cache-Control = "public, max-age=31536000, immutable"
+
+# The 8th Wall engine, staged into public/external/ by `npm run xr8:sync` and
+# copied verbatim into dist. Worth caching: xr.js and xr-slam.js are 2.1 MB
+# gzipped between them, and every visitor pays that before the aircraft appears.
+#
+# Deliberately NOT `immutable`, unlike /models/*. These paths carry no version
+# or content hash, so an npm upgrade replaces the bytes at the same URL — and
+# `immutable` tells every browser and CDN in between never to revalidate, which
+# is exactly how the textured aircraft shipped and still rendered flat white
+# (see the note in src/models.js). A week with revalidation is the version of
+# this that cannot go wrong.
+[[headers]]
+  for = "/external/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"
