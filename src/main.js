@@ -107,16 +107,52 @@ async function startAR() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
   /**
-   * Hold the camera at the field of view we asked for.
+   * Match the render's field of view to the lens, and keep it matched.
+   *
+   * Everything here except the lens itself is measurable. The feed is drawn with
+   * `object-fit: cover`, so given the video's real dimensions and the viewport's
+   * the crop is determined; and because that crop preserves the container's
+   * aspect exactly, a single vertical fov describes the view. So the only input
+   * that has to be assumed is the camera's own angle of view — see
+   * `config.lensFov` — and the orientation of the feed, which decides whether
+   * the answer is nearer 42° or 68°, is read rather than guessed.
    *
    * Re-applied every frame rather than once, because LocAR recomputes
-   * `fov = hFov / aspect` on every resize — so setting it at startup survives
-   * until the first orientation change or toolbar reflow and then silently
-   * reverts. Comparing a float per frame is cheaper than the bug.
+   * `fov = hFov / aspect` on each resize. Measured: a 414x896 to 414x700 change
+   * took its fov from 173.1° to 60.0°, so on a phone the world's scale shifted
+   * whenever the browser toolbar appeared. Comparing a float per frame is
+   * cheaper than that bug.
    */
+  const video = () => document.querySelector('video');
+
+  function lensVerticalFov() {
+    if (config.verticalFov > 0) return config.verticalFov;
+    if (config.lensFov <= 0) return 0;
+
+    const feed = video();
+    const vw = feed?.videoWidth ?? 0;
+    const vh = feed?.videoHeight ?? 0;
+    const cw = renderer.domElement.clientWidth;
+    const ch = renderer.domElement.clientHeight;
+    // Before the first frame arrives there is nothing to match; leave it alone
+    // rather than guess and then visibly change our mind.
+    if (vw <= 0 || vh <= 0 || cw <= 0 || ch <= 0) return 0;
+
+    // The lens angle is quoted across the frame's long axis.
+    const half = Math.tan(THREE.MathUtils.degToRad(config.lensFov) / 2);
+    const [tanH, tanV] = vw >= vh ? [half, (half * vh) / vw] : [(half * vw) / vh, half];
+
+    // cover scales to fill, so the smaller axis is the one left fully visible.
+    const scale = Math.max(cw / vw, ch / vh);
+    const visibleV = Math.min(1, ch / (vh * scale));
+    void tanH;
+    return 2 * THREE.MathUtils.radToDeg(Math.atan(tanV * visibleV));
+  }
+
   function holdFieldOfView() {
-    if (config.verticalFov <= 0 || camera.fov === config.verticalFov) return;
-    camera.fov = config.verticalFov;
+    const wanted = lensVerticalFov();
+    if (wanted <= 0 || Math.abs(camera.fov - wanted) < 0.01) return;
+    camera.fov = wanted;
     camera.updateProjectionMatrix();
   }
   holdFieldOfView();

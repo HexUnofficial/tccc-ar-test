@@ -275,6 +275,25 @@ export const config = {
    */
   verticalFov: Math.max(0, num('vfov', 0)),
 
+  /**
+   * The camera's own horizontal field of view, in degrees, across the long axis
+   * of the frame it captures. 0 disables the correction entirely.
+   *
+   * This is the only genuinely unknown quantity in the sum above: iOS will not
+   * tell us the lens, but everything else can be measured at runtime. Given the
+   * video's real dimensions and the viewport's, the cover-crop is determined,
+   * and the crop preserves the container's aspect exactly — so a single vertical
+   * fov describes the view and can be derived rather than guessed. That removes
+   * the part that was guesswork, namely whether iOS hands over a landscape or
+   * an already-rotated portrait feed, which moves the answer from 42° to 68°.
+   *
+   * 68 is the iPhone main wide camera: 26 mm equivalent is 2·atan(18/26), about
+   * 69° across the long axis. Ultra-wide is nearer 100 and the 2x is nearer 37,
+   * so change this if the lens changes. `?vfov=` still forces an exact vertical
+   * value and wins over this.
+   */
+  lensFov: Math.max(0, num('lens', 68)),
+
   /** Go fullscreen on start where the browser allows it (not iPhone Safari). */
   fullscreen: flag('fullscreen', true),
 };
